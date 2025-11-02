@@ -1,0 +1,17 @@
+country_event = {
+	id = 1
+	title = "host the games"
+	allow_multiple_instances = yes
+
+	option = {
+		name = "we will fund it"
+		money = -50
+	}
+	option = {
+	    name = "pass the buck"
+	    any_country = {
+			limit = { money = 1000 }
+			country_event = 1
+		}
+	}
+}
