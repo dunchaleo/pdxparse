@@ -56,8 +56,8 @@
 ;again ``type'' here is a token datatype, its "value" being the symbol itself
 (defun tok (type i)
   (let ((ni (skip i)))
-    (if (eq type (get-token i))
-        (cons type (skip i))
+    (if (eq type (get-token ni))
+        (cons type (1+ ni))
       (cons (get-token i) i))))
 
 (defun parse ()
