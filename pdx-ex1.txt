@@ -1,17 +1,37 @@
-country_event = {
-	id = 1
-	title = "host the games"
-	allow_multiple_instances = yes
+#	country_event = {
+#		id = 1
+#		title = "host the games"
+#		allow_multiple_instances = yes
+#
+#		option = {
+#			name = "we will fund it"
+#			money = -3.5
+#		}
+#		option = {
+#			name = "pass the buck"
+#			any_country = {
+#				limit = { money = 5 }
+#				country_event = 1
+#			}
+#		}
+#	}
 
-	option = {
-		name = "we will fund it"
-		money = -50
+# for now, this file isn't getting parsed. copy pasting below.
+# following made by hand for simplified one-char-tokenizing
+s = {
+	s = n
+	s = s
+	s = s
+
+	s = {
+		s = s
+		s = -n.n
 	}
-	option = {
-	    name = "pass the buck"
-	    any_country = {
-			limit = { money = 1000 }
-			country_event = 1
+	s = {
+		s = s
+		s = {
+			s = { s = n }
+			s = n
 		}
 	}
 }

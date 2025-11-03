@@ -1,33 +1,65 @@
 ;;; pdx-parser.el --- Description -*- lexical-binding: t; -*-
 ;;
-;; Copyright (C) 2025 LAPTOP-J7R7QGBM
-;;
-;; Author: LAPTOP-J7R7QGBM <knair@LAPTOP-J7R7QGBM>
-;; Maintainer: LAPTOP-J7R7QGBM <knair@LAPTOP-J7R7QGBM>
-;; Created: November 02, 2025
-;; Modified: November 02, 2025
-;; Version: 0.0.1
-;; Keywords: abbrev bib c calendar comm convenience data docs emulations extensions faces files frames games hardware help hypermedia i18n internal languages lisp local maint mail matching mouse multimedia news outlines processes terminals tex text tools unix vc wp
-;; Homepage: https://github.com/knair/pdx-parser
-;; Package-Requires: ((emacs "24.3"))
-;;
-;; This file is not part of GNU Emacs.
-;;
 ;;; Commentary:
-;;
+;; ideally this should be convertable to scheme with find/replace
 ;;  Description
 ;;
 ;;; Code:
 
-;i think these are just the cars of the tokens. a token is ('type . "val")
-(list 'num 'eq '{
+;i think these will just be the cars of the tokens. a token is ('type . "val")
+;(eventually)
+(setq types (list 's 'n 'w '= '{ '} '\. '- 'sym)) ;remove 'w
 
-;hack: tokenize '{ with following whitespace if there is any, just "{" if not.
-;accordingly, when scanning whitespace, tokenize as 'w unless the terminating char is "}", then tokenize as '}.
-;in both cases the string value of the token can just be the one char. or in C, beg at char and len=1
+(defun type-name (type)
+  (cl-case type
+    ('s  "string")
+    ('n  "number")
+    ('w  "whitespace") ;remove
+    ('=  "equals")
+    ('{  "open brace")
+    ('}  "close brace")
+    ('\.  "decimal pt")
+    ('-  "minus")
+    ('sym  "other symbol")))
+(defun print-types ()
+  (mapcar (lambda (type)
+            (print (type-name type)))
+          types))
 
 
+;first try skipping all whitespace. parsing ``n = { s = n s = -n }'' is just as hard as ``n = { s = ns = -n }'' or other variation
+;  (being impossible to lex out ss or nn if you actually had real text input is besides the point)
+;then there'd be an implicit delimiter operator coming in after every s, n (unless = is next) and }
+;would this implicit delimiter be a token though?? probably not since it's literally not in the text
 
-(provide 'pdx-parser)
+(defun is-whitespace (c)
+  (cl-case c ((?\s ?\n ?\t) t)))
 
+(defun skip (i)
+  (let ((c (aref buf i)))
+    (if (is-whitespace c)
+        (skip (1+ i))
+      i)))
+
+;for now, tokens will be single symbols
+;this is to be used like those scanner functions in parser.c in main project
+; TODO if not ('= '{ '} '\.) then 'sym
+(defun get-token (i)
+  (let ((c (aref buf i)))
+    (if (is-whitespace c)
+      nil
+    (intern (char-to-string (aref buf i))))))
+
+;this is tokenize-as/consume. call it like (tok 'type (skip i)) ;unless this fun calls skip
+;returns a parser object, (last-token . current-idx)
+;  TODO what should this parser object actually be? problem finding last-token.
+;again ``type'' here is a token datatype, its "value" being the symbol itself
+(defun tok (type i)
+  (let ((ni (skip i)))
+    (if (eq type (get-token i))
+        (cons type (skip i))
+      (cons (get-token i) i))))
+
+(defun parse ()
+  (let* ()))
 ;;; pdx-parser.el ends here
