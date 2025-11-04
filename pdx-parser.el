@@ -1,7 +1,8 @@
 ;;; pdx-parser.el --- Description -*- lexical-binding: t; -*-
 ;;
 ;;; Commentary:
-;; ideally this should be convertable to scheme with find/replace
+;; ideally this should be convertable to scheme with find/replace except for i/o.
+;; elisp has a lot of built in functionality for working with text that are unused here.
 ;;  Description
 ;;
 ;;; Code:
@@ -41,25 +42,39 @@
         (skip (1+ i))
       i)))
 
-;for now, tokens will be single symbols
+;for now, tokens will be single symbols.
 ;this is to be used like those scanner functions in parser.c in main project
-; TODO if not ('= '{ '} '\.) then 'sym
-(defun get-token (i)
-  (let ((c (aref buf i)))
-    (if (is-whitespace c)
-      nil
-    (intern (char-to-string (aref buf i))))))
+(defun scan (i)
+  (let* ((c (aref buf i))
+         (token (intern (char-to-string c))))
+    (if (memq token types)
+        token
+      (if (is-whitespace c)
+          nil    ;'w
+        'sym))))
 
-;this is tokenize-as/consume. call it like (tok 'type (skip i)) ;unless this fun calls skip
-;returns a parser object, (last-token . current-idx)
-;  TODO what should this parser object actually be? problem finding last-token.
+;this is tokenize-as/consume.
+;returns a parser object, (last-token . idx)
+;  TODO what should this parser object actually be?
 ;again ``type'' here is a token datatype, its "value" being the symbol itself
-(defun tok (type i)
-  (let ((ni (skip i)))
-    (if (eq type (get-token ni))
-        (cons type (1+ ni))
-      (cons (get-token i) i))))
+(defun tok (i &optional type)
+  (let ((n-i (skip (1+ i)))) ;next-i
+    (if (or (eq type nil) (eq type (scan n-i))) ;tokenize anything or expect only
+        (cons (scan n-i) n-i) ;(cons type n-i) bad when type nil
+      (cons (scan i) i))))
 
-(defun parse ()
+;makes a test pass
+(defun print-lexemes (buf)
+  (dolist (c buf)
+    )
+
+(defun parse (buf)
   (let* ()))
 ;;; pdx-parser.el ends here
+
+
+;testing: eval inlne with example selected in editor
+
+(with-current-buffer (get-buffer "pdx-ex1.txt")
+  (let ((buf (buffer-substring-no-properties (region-beginning) (region-end))))
+       buf))

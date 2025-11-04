@@ -16,7 +16,7 @@
 #		}
 #	}
 
-# for now, this file isn't getting parsed. copy pasting below.
+# for now, this file isn't being parsed in full--
 # following made by hand for simplified one-char-tokenizing
 s = {
 	s = n
