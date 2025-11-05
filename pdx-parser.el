@@ -9,7 +9,7 @@
 
 ;i think these will just be the cars of the tokens. a token is ('type . "val")
 ;(eventually)
-(setq types (list 's 'n 'w '= '{ '} '\. '- 'sym)) ;remove 'w
+(setq types (list 's 'n 'w '= '{ '} '\. '- 'sym 'eof)) ;remove 'w
 
 (defun type-name (type)
   (cl-case type
@@ -21,7 +21,8 @@
     ('}  "close brace")
     ('\.  "decimal pt")
     ('-  "minus")
-    ('sym  "other symbol")))
+    ('sym  "other symbol")
+    ('eof "end of file")))
 (defun print-types ()
   (mapcar (lambda (type)
             (print (type-name type)))
@@ -36,45 +37,62 @@
 (defun is-whitespace (c)
   (cl-case c ((?\s ?\n ?\t) t)))
 
+;inc ptr to first non whitespace char
+;strings are not nil terminated so ptr at eof will be out of bounds
 (defun skip (i)
-  (let ((c (aref buf i)))
-    (if (is-whitespace c)
-        (skip (1+ i))
-      i)))
+  (if (>= i (length buf))
+      (length buf)
+    (let ((c (aref buf i)))
+      (if (is-whitespace c)
+          (skip (1+ i))
+        i))))
 
 ;for now, tokens will be single symbols.
 ;this is to be used like those scanner functions in parser.c in main project
 (defun scan (i)
-  (let* ((c (aref buf i))
+  (if (>= i (length buf))
+      'eof
+    (let* ((c (aref buf i))
          (token (intern (char-to-string c))))
     (if (memq token types)
         token
       (if (is-whitespace c)
           nil    ;'w
-        'sym))))
+        'sym)))))
 
 ;this is tokenize-as/consume.
 ;returns a parser object, (last-token . idx)
 ;  TODO what should this parser object actually be?
-;again ``type'' here is a token datatype, its "value" being the symbol itself
+;  TODO?? param P instead of i?
+;again ``type'' here is a token datatype, its "value" being the symbol itself.
+;  not keeping a token word length for now but finding next-i would need to use that
+;    (and then we wouldnt have to (tok -1) to initialize)
 (defun tok (i &optional type)
-  (let ((n-i (skip (1+ i)))) ;next-i
+  (let ((n-i (skip (1+ i)))) ;next-i:
     (if (or (eq type nil) (eq type (scan n-i))) ;tokenize anything or expect only
-        (cons (scan n-i) n-i) ;(cons type n-i) bad when type nil
+        (cons (scan n-i) n-i) ;(cons type n-i) bad when type nil/any
       (cons (scan i) i))))
 
-;makes a test pass
-(defun print-lexemes (buf)
-  (dolist (c buf)
-    )
+;makes a single pass to convert all tokens read into a list
+;for this simplified trial, it just holds symbols. later, it should hold strings
+; (what actually appears in input text, only incidentally holds data about tokens' type or location)
+(defun lexemes-list ()
+  ;making passes in the parsing stage with named-let would get confusing. should stay with iterative
+  (named-let lex ((i -1) (type nil) (lexemes nil))
+    (if (eq type 'eof)
+        lexemes
+      (let ((p (tok i)))
+        (lex (cdr p) (car p) (append lexemes (cons (car p) nil)))))))
 
-(defun parse (buf)
+(defun parse ()
   (let* ()))
 ;;; pdx-parser.el ends here
-
 
 ;testing: eval inlne with example selected in editor
 
 (with-current-buffer (get-buffer "pdx-ex1.txt")
-  (let ((buf (buffer-substring-no-properties (region-beginning) (region-end))))
-       buf))
+  ;with lexical scoping, cant pass buf into anything above, it has to be a global..
+  (setq buf (buffer-substring-no-properties (region-beginning) (region-end)))
+  (lexemes-list))
+  ; -->
+  ; (s = { s = n s = s s = s s = { s = s s = - n \. n } s = { s = s s = { s = { s = n } s = n } } } eof)
