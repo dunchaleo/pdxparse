@@ -9,7 +9,6 @@
 
 ;i think these will just be the cars of the tokens. a token is ('type . "val")
 ;(eventually)
-(setq types (list 's 'n 'w '= '{ '} '\. '- 'sym 'eof)) ;remove 'w
 
 (defun type-name (type)
   (cl-case type
@@ -86,13 +85,35 @@
 
 (defun parse ()
   (let* ()))
+
 ;;; pdx-parser.el ends here
+
 
 ;testing: eval inlne with example selected in editor
 
-(with-current-buffer (get-buffer "pdx-ex1.txt")
+(defun TEST (test-exp &rest body) ;TODO &rest
+  (with-current-buffer (get-buffer "pdx-ex1.txt")
   ;with lexical scoping, cant pass buf into anything above, it has to be a global..
-  (setq buf (buffer-substring-no-properties (region-beginning) (region-end)))
-  (lexemes-list))
-  ; -->
+  (setq buf (buffer-substring-no-properties (region-beginning) (region-end))))
+  (eval test-exp))
+
+
+(TEST '
+ (let ((types (list 's 'n '= '{ '} '\. '- 'sym 'eof)))
+   (mapcar #'type-name types))
+ ); ->
+  ; ("string" "number" "equals" "open brace" "close brace" "decimal pt" "minus" "other symbol" "end of file")
+
+
+;TODO TEST optional param buf, will still be global, TEST can setq it though
+
+(TEST '
+ (lexemes-list)
+ ); ->
   ; (s = { s = n s = s s = s s = { s = s s = - n \. n } s = { s = s s = { s = { s = n } s = n } } } eof)
+
+(TEST '
+ (let ((lexemes (lexemes-list)))
+   (mapcar #'type-name lexemes))
+ ); ->
+  ; ("string" "equals" "open brace" "string" "equals" "number"  ...  "close brace" "end of file")
