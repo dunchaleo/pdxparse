@@ -71,6 +71,7 @@
 ;makes a single pass to convert all tokens read into a list
 ;for this simplified trial, it just holds symbols. later, it should hold strings
 ; (what actually appears in input text, only incidentally holds data about tokens' type or location)
+;    (e.g. using start ptr and length for a string, or being able to (intern) the string and get token type)
 (defun lexemes-list ()
   ;making passes in the parsing stage with named-let would get confusing. should stay with iterative
   (named-let lex ((i -1) (type nil) (lexemes nil))
