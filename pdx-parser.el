@@ -7,9 +7,9 @@
 ;;
 ;;; Code:
 
-;i think these will just be the cars of the tokens. a token is ('type . "val")
-;(eventually)
 
+;this is just for pretty printing.
+;eventually a token will be ('type, "val") where "val" is what really appears in text
 (defun type-name (type)
   (cl-case type
     ('s  "string")
@@ -22,10 +22,6 @@
     ('-  "minus")
     ('sym  "other symbol")
     ('eof "end of file")))
-(defun print-types ()
-  (mapcar (lambda (type)
-            (print (type-name type)))
-          types))
 
 
 ;first try skipping all whitespace. parsing ``n = { s = n s = -n }'' is just as hard as ``n = { s = ns = -n }'' or other variation
