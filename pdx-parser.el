@@ -111,13 +111,13 @@
   (eval test-exp))
 
 
-(TEST '
-   (mapcar #'type-name types)
+(TEST ' ;just test the pretty printer with a quick types list
+   (mapcar #'type-name (list 's 'n '= '{ '} '\. '- 'sym 'eof))
  ); ->
   ; ("string" "number" "equals" "open brace" "close brace" "decimal pt" "minus" "other symbol" "end of file")
 
 
-(TEST '
+(TEST ' ;can we turn the input into lexemes?
  (lexemes-list)
  ); ->
   ; (s = { s = n s = s s = s s = { s = s s = - n \. n } s = { s = s s = { s = { s = n } s = n } } } eof)
@@ -128,7 +128,7 @@
  ); ->
   ; ("string" "equals" "open brace" "string" "equals" "number"  ...  "close brace" "end of file")
 
-(TEST' ;does 'sym work?
+(TEST' ;does special type 'sym work?
  (let ((lexemes (lexemes-list)))
    (mapcar #'type-name lexemes))
  "x = { [] }"
