@@ -21,7 +21,7 @@
     ('\.  "decimal pt")
     ('-  "minus")
     ('sym  "other symbol")
-    ('eof "end of file")))
+    ('eof "end of file"))) ;eof really not needed now either
 
 
 ;first try skipping all whitespace. parsing ``n = { s = n s = -n }'' is just as hard as ``n = { s = ns = -n }'' or other variation
@@ -45,15 +45,22 @@
 ;for now, tokens will be single symbols.
 ;this is to be used like those scanner functions in parser.c in main project
 (defun scan (i)
-  (if (>= i (length buf))
-      'eof
-    (let* ((c (aref buf i))
-         (token (intern (char-to-string c))))
-    (if (memq token types)
-        token
-      (if (is-whitespace c)
-          nil    ;'w
-        'sym)))))
+  (let
+      ;;emulate ``char* c = buf[i]'' on null-terminated C-string buf
+      ((c (if (>= i (length buf)) 'eof (aref buf i))))
+    ((lambda (lexeme)
+       ;;this lambda may represent a simplified lexeme-to-token procedure. it's here
+       ;;because i wanted to use a 'sym type w/out anything like a glbl token-types enum.
+       ;;could just replace block w/ ``(unless (eq c 'eof) (intern (char-to-string c))''
+       ;;FIXME (should have just kept everything super simple--no 'sym, no 'eof)
+       (if (eq lexeme 'eof)
+           'eof
+         (if (member lexeme (list ?s ?n ?= ?{ ?} ?\. ?-))
+             (intern (char-to-string lexeme))
+           (if (is-whitespace lexeme) ;shouldnt happen
+               nil ;'w failsafe
+             'sym))))
+     c)))
 
 ;this is tokenize-as/consume.
 ;returns a parser object, (last-token . idx)
@@ -73,36 +80,42 @@
 ; (what actually appears in input text, only incidentally holds data about tokens' type or location)
 ;    (e.g. using start ptr and length for a string, or being able to (intern) the string and get token type)
 (defun lexemes-list ()
-  ;making passes in the parsing stage with named-let would get confusing. should stay with iterative
-  (named-let lex ((i -1) (type nil) (lexemes nil))
-    (if (eq type 'eof)
-        lexemes
-      (let ((p (tok i)))
-        (lex (cdr p) (car p) (append lexemes (cons (car p) nil)))))))
+  (if (version< emacs-version "28.0")
+      (cl-labels ((lex (i type lexemes)
+                       (if (eq type 'eof)
+                           lexemes
+                         (let ((p (tok i)))
+                           (lex (cdr p) (car p) (append lexemes (cons (car p) nil)))))))
+        (lex -1 nil nil))
+    ;named-let is available in scheme and newer elisp
+    ;either way, should still opt for iterative in the parsing stage?
+    (named-let lex ((i -1) (type nil) (lexemes nil))
+               (if (eq type 'eof)
+                   lexemes
+                 (let ((p (tok i)))
+                   (lex (cdr p) (car p) (append lexemes (cons (car p) nil))))))))
 
 (defun parse ()
   (let* ()))
 
 ;;; pdx-parser.el ends here
 
-
 ;testing: eval inlne with example selected in editor
 
-(defun TEST (test-exp &rest body) ;TODO &rest
-  (with-current-buffer (get-buffer "pdx-ex1.txt")
-  ;with lexical scoping, cant pass buf into anything above, it has to be a global..
-  (setq buf (buffer-substring-no-properties (region-beginning) (region-end))))
+(defun TEST (test-exp &optional buf-to-use) ;no &rest, to test multi exp, just do progn
+  (if (not buf-to-use)
+      (with-current-buffer (get-buffer "pdx-ex1.txt")
+        ;;with lexical scoping, cant pass buf into anything above, it has to be a global..
+        (setq buf (buffer-substring-no-properties (region-beginning) (region-end))))
+    (setq buf buf-to-use))
   (eval test-exp))
 
 
 (TEST '
- (let ((types (list 's 'n '= '{ '} '\. '- 'sym 'eof)))
-   (mapcar #'type-name types))
+   (mapcar #'type-name types)
  ); ->
   ; ("string" "number" "equals" "open brace" "close brace" "decimal pt" "minus" "other symbol" "end of file")
 
-
-;TODO TEST optional param buf, will still be global, TEST can setq it though
 
 (TEST '
  (lexemes-list)
@@ -114,3 +127,10 @@
    (mapcar #'type-name lexemes))
  ); ->
   ; ("string" "equals" "open brace" "string" "equals" "number"  ...  "close brace" "end of file")
+
+(TEST' ;does 'sym work?
+ (let ((lexemes (lexemes-list)))
+   (mapcar #'type-name lexemes))
+ "x = { [] }"
+ ); ->
+  ; ("other symbol" "equals" "open brace" "other symbol" "other symbol" "close brace" "end of file")
