@@ -34,6 +34,7 @@
 
 ;inc ptr to first non whitespace char
 ;strings are not nil terminated so ptr at eof will be out of bounds
+;TODO skip comments
 (defun skip (i)
   (if (>= i (length buf))
       (length buf)
@@ -46,7 +47,7 @@
 ;this is to be used like those scanner functions in parser.c in main project
 (defun scan (i)
   (let
-      ;;emulate ``char* c = buf[i]'' on null-terminated C-string buf
+      ;;emulate ``char* c = buf[i]'' on null-terminated C-string buf  (change from 'eof to nil?)
       ((c (if (>= i (length buf)) 'eof (aref buf i))))
     ((lambda (lexeme)
        ;;this lambda may represent a simplified lexeme-to-token procedure. it's here
@@ -87,8 +88,8 @@
                          (let ((p (tok i)))
                            (lex (cdr p) (car p) (append lexemes (cons (car p) nil)))))))
         (lex -1 nil nil))
-    ;named-let is available in scheme and newer elisp
-    ;either way, should still opt for iterative in the parsing stage?
+    ;;named-let is available in scheme and newer elisp
+    ;k;either way, should still opt for iterative in the parsing stage?
     (named-let lex ((i -1) (type nil) (lexemes nil))
                (if (eq type 'eof)
                    lexemes
@@ -100,16 +101,26 @@
 
 ;;; pdx-parser.el ends here
 
-;testing: eval inlne with example selected in editor
+;;;testing:
 
-(defun TEST (test-exp &optional buf-to-use) ;no &rest, to test multi exp, just do progn
-  (if (not buf-to-use)
-      (with-current-buffer (get-buffer "pdx-ex1.txt")
-        ;;with lexical scoping, cant pass buf into anything above, it has to be a global..
-        (setq buf (buffer-substring-no-properties (region-beginning) (region-end))))
-    (setq buf buf-to-use))
-  (eval test-exp))
-
+(defun TEST (test-exp &optional emacs-buffer-name) ;no &rest, to test multi exp, just do progn
+  ;;test region selected in open emacs buffer in the example txt file
+  (with-current-buffer (get-buffer (if emacs-buffer-name emacs-buffer-name "pdx-ex1.txt"))
+    ;;with lexical scoping, cant pass buf into anything above, it has to be a global..
+    (setq buf (buffer-substring-no-properties (region-beginning) (region-end)))
+    (eval test-exp)))
+(defun TEST-MULTI (test-exp bufs-to-use)
+  ;;test a list of strings as seperate input buffers
+ (dolist (str bufs-to-use)
+   (setq buf str)
+   (eval test-exp)))
+(defun TEST-MULTI (test-exp bufs-to-use)
+  ;;test a list of strings as seperate input buffers
+  (setq results nil)
+  (dolist (str bufs-to-use results)
+    (setq buf str)
+    (setq results (append
+                   results (eval test-exp)))))
 
 (TEST ' ;just test the pretty printer with a quick types list
    (mapcar #'type-name (list 's 'n '= '{ '} '\. '- 'sym 'eof))
@@ -128,9 +139,14 @@
  ); ->
   ; ("string" "equals" "open brace" "string" "equals" "number"  ...  "close brace" "end of file")
 
-(TEST' ;does special type 'sym work?
+(TEST-MULTI ' ;does special type 'sym work?
  (let ((lexemes (lexemes-list)))
    (mapcar #'type-name lexemes))
- "x = { [] }"
+ (list "$ = { [] }")
  ); ->
   ; ("other symbol" "equals" "open brace" "other symbol" "other symbol" "close brace" "end of file")
+
+(TEST-MULTI ' ;can we parse a number expression?
+ (lexemes-list)
+ (list "n" "n.n" "-n")
+ )
