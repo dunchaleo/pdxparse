@@ -111,11 +111,6 @@
     (eval test-exp)))
 (defun TEST-MULTI (test-exp bufs-to-use)
   ;;test a list of strings as seperate input buffers
- (dolist (str bufs-to-use)
-   (setq buf str)
-   (eval test-exp)))
-(defun TEST-MULTI (test-exp bufs-to-use)
-  ;;test a list of strings as seperate input buffers
   (setq results nil)
   (dolist (str bufs-to-use results)
     (setq buf str)
