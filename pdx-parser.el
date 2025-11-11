@@ -109,6 +109,7 @@
 ;;;testing
 ;;
 ;;this got carried away
+;;FIXME i think this what mapcar does...
 
 (defun TEST-EXPRESSIONS-ON-INPUTS (test-exps input-strings)
   ;;master tester
@@ -118,7 +119,7 @@
   ;;of dimension = # of input bufs...
   (let ((i 0)
         (buf-results nil))
-    ;;...where list-of-strings ``buf-results'' (as in "results on this buf")
+    ;;...where list ``buf-results'' (as in "results on this buf")
     ;;fills the vector for each input buf.
     (dolist (str input-strings results)
       (setq buf str) ;this is only  global if bound outside of here already
@@ -190,6 +191,7 @@
  '(lexemes-list)
  ); ->
   ; (n eof), (n \. n eof), (- n eof)
+
 
 ;;;blah
 (defun unset-my-shit ()
