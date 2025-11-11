@@ -106,10 +106,10 @@
 ;;; pdx-parser.el ends here
 
 
-;;;testing
+;;; testing
 ;;
 ;;this got carried away
-;;FIXME i think this what mapcar does...
+;;FIXME redo T-E-O-I to only have 1 dolist (probably outer one), call it with mapcar
 
 (defun TEST-EXPRESSIONS-ON-INPUTS (test-exps input-strings)
   ;;master tester
@@ -157,6 +157,7 @@
   ;;wrapper where you specify list of strings
   (funcall #'TEST-EXPRESSIONS-ON-INPUTS test-exps input-strings))
 
+;;; run tests
 
 (TEST
  ;;just test the pretty printer with a quick types list
@@ -167,33 +168,28 @@
 
 (TEST-REGION
  ;;can we turn the input into lexemes?
- '(lexemes-list)
- ); ->
-  ; (s = { s = n s = s s = s s = { s = s s = - n \. n } s = { s = s s = { s = { s = n } s = n } } } eof)
-
-(TEST-REGION
- '(let ((lexemes (lexemes-list)))
-   (mapcar #'type-name lexemes))
- ); ->
-  ; ("string" "equals" "open brace" "string" "equals" "number"  ...  "close brace" "end of file")
+ ' (lexemes-list)
+ ;;                => (s = { s = n s = s s = s s = { s = s s = - n \. n } s = { s = s s = { s = { s = n } s = n } } } eof)
+ ' (let ((lexemes (lexemes-list)))
+     (mapcar #'type-name lexemes)) ;; =>
+ ;; ("string" "equals" "open brace" "string" "equals" "number"  ...  "close brace" "end of file")
+ )
 
 (TEST-STR
  ;;does special type 'sym work?
  (list "$ = { [] }")
- '(let ((lexemes (lexemes-list)))
-   (mapcar #'type-name lexemes))
- ); ->
-  ; ("other symbol" "equals" "open brace" "other symbol" "other symbol" "close brace" "end of file")
+ ' (let ((lexemes (lexemes-list)))
+     (mapcar #'type-name lexemes))
+   ;;                              => ("other symbol" "equals" "open brace" "other symbol" "other symbol" "close brace" "end of file")
+ )
 
 (TEST-STR
  ;;can we parse a number expression?
  (list "n" "n.n" "-n")
- '(lexemes-list)
- ); ->
-  ; (n eof), (n \. n eof), (- n eof)
+ ' (lexemes-list) ;; => (n eof), => (n \. n eof), => (- n eof)
+ )
 
-
-;;;blah
+;;; blah
 (defun unset-my-shit ()
   ;;non function global symbols
   (progn (makunbound 'buf) (makunbound 'results)))
