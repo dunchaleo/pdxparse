@@ -67,18 +67,21 @@
              'sym))))
      c)))
 
-;this is tokenize-as/consume.
-;returns a parser object, (last-token . idx)
-;  TODO what should this parser object actually be?
-;  TODO?? param P instead of i?
-;again ``type'' here is a token datatype, its "value" being the symbol itself.
-;  not keeping a token word length for now but finding next-i would need to use that
-;    (and then we wouldnt have to (tok -1) to initialize)
-(defun tok (i &optional type)
-  (let ((n-i (skip (1+ i)))) ;next-i:
-    (if (or (eq type nil) (eq type (scan n-i))) ;tokenize anything or expect only
-        (cons (scan n-i) n-i) ;(cons type n-i) bad when type nil/any
-      (cons (scan i) i))))
+;this is tokenize-as/consume. returns a parser object, (last-token . idx)
+;  (TODO? param P instead of i?)
+;can tokenize anything (nil), or expect ``as-type'' (atom or list)
+;(again, ``as-type'' here is a token datatype, its "value" being the symbol itself).
+;  not keeping a token word length for now but finding next-type would need to use that
+;    (and then we wouldnt have to ``(tok -1)'' to initialize)
+(defun tok (i &optional as-type)
+  (let (;;force a list (``nil'' is a list '() but not a cons cell -elisp docs)
+        (as-type (if (listp as-type) as-type (cons as-type nil)))
+        ;;``skip'' from end idx of this token (to beg of next) and scan in next type
+        (next-type (scan (skip (1+ i)))))
+    (if (or (eq as-type nil)
+            (member t (mapcar (lambda (type) (eq type next-type)) as-type)))
+        (cons next-type (skip (1+ i)))
+      (cons (scan i) (skip i))))) ;FIXME eval error out of range when fails to tokenize at -1.
 
 ;makes a single pass to convert all tokens read into a list
 ;for this simplified trial, it just holds symbols. later, it should hold strings
@@ -165,6 +168,19 @@
  ); ->
   ; ("string" "number" "equals" "open brace" "close brace" "decimal pt" "minus" "other symbol" "end of file")
 
+(TEST-STR
+ (list "s = { n.n }")
+ ;;consumes if next=expected?
+ ;;NOTE standalone calls to tok are bad if i on whitespace
+ ' (tok -1 (list 's 'n))
+   ;;         => (s . 0)  ;can expect any in list?
+ ' (tok 0 '=)
+   ;;         => (= . 2)
+ ' (tok 2 '{)
+   ;;         => ({ . 4)
+ ' (tok 8 'n)
+  ;;          =>  (n . 8)  ;doesnt consume if unexpected?
+)
 
 (TEST-REGION
  ;;can we turn the input into lexemes?
