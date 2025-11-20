@@ -166,16 +166,17 @@
                    ))))
            (parse-block ()
              (force '{)
-             (cl-loop do
+             (cl-loop do until (eq (peek) '})
                       (parse-identifier)
                       (if (eq (peek) '=)
                           (progn
                             (force '=)
                             (if (or (eq (peek) 's) (eq (peek) 'n))
                                 (parse-identifier)
-                              (parse-block))))
-                      until (eq (peek) '})))
+                              (parse-block)))))
+             (force '}))
            (parse-identifier-idea ()
+             ;;this isnt it lol v........... why cant i just (collect) progn returns.....
              ;;(list 's '- 'n '\.n 'n) <- "walk-list"
              ;;(list nil nil nil nil nil) <- init "force/allow list" (known length)
              ;;the condititionals in p-i build the f-a list
