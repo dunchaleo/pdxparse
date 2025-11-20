@@ -15,6 +15,7 @@
 
 (defun TEST-EXPRESSIONS-ON-INPUTS (test-exps input-strings)
   ;;master tester
+  (load-file "pdx-parser.el")
   (setq buf nil pt nil) ;ensure bound
   (setq results (make-vector (length input-strings) nil))
   ;;there is one vector-of-lists ``results'' (as in ALL results)
@@ -100,8 +101,9 @@
 
 (TEST-STR
  ;;can we parse a number expression?
- (list "n" "n.n" "-n")
- ' (lexemes-list) ;; => (n eof), => (n \. n eof), => (- n eof)
+ (list "-." "s" "-n")
+;; ' (lexemes-list) ;; => (n eof), => (n \. n eof), => (- n eof)
+ (parser-container)
  )
 
 ;;; blah

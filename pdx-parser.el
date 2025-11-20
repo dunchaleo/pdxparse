@@ -129,40 +129,71 @@
 ;;  string | ["-"] number [ "." number ] .
 
 ;;https://emacsdocs.org/docs/elisp/Errors TODO read
-(cl-labels ((peek () (cdr (tok pt)))
-            ;;accept,expect? try-consume,force-consume? permit,assert?
-            ;;we use the word "expect" in ``tok'' already...
-            (allow (&optional as-type)
-                   (let ((p (tok pt as-type)))
-                     (setq pt (caar p))
-                     p))
-            (force (as-type)
-                   (let ((p (allow as-type)))
-                     (if (not (cdar p))
-                         (error "at %s: unexpected token `%s' (%s)"
-                                (skip (1+ pt)) (peek) as-type)
-                         ;;nil
-                       p)))
-            (parse-identifier ()
-                              (if (eq (peek) 's)
-                                  (force 's)
-                                (progn
-                                  (allow '-)
-                                  (force 'n)
-                                  (if (eq (peek) '\.)
-                                      (progn
-                                        (force '\.)
-                                        (force 'n))
-                                    ))))))
 
+(defun parser-container ()
+    (let ((pt -1)
+          (token-stack nil))
+      (cl-labels
+          (
+                                        ;naive, appending rets to data like this feels wrong
+                                        ; (token-push (p)
+                                        ;   (if (cdar p)
+                                        ;       (push (cdr (tok pt) token-stack))))
+           (peek () (cdr (tok pt)))
+           ;;accept,expect? try-consume,force-consume? permit,assert?
+           ;;we use the word "expect" in ``tok'' already...
+           (allow (&optional as-type)
+             (let ((p (tok pt as-type)))
+               (setq pt (caar p))
+               (if (cdar p) p))) ;(if (cdar p) (token-push p))
+           (force (as-type)
+             (let ((p (allow as-type)))
+               (if (not (cdar p))
+                   (error "at %s: unexpected token `%s' (%s)"
+                          (skip (1+ pt)) (peek) as-type)
+                 p)))
+           ;;these are written very procedurally i.e. not functionally
+           (parse-identifier ()
+             (if (eq (peek) 's)
+                 (force 's)
+               (progn
+                 (allow '-)
+                 (force 'n)
+                 (if (eq (peek) '\.)
+                     (progn
+                       (force '\.)
+                       (force 'n))
+                   ))))
+           (parse-block ()
+             (force '{)
+             (cl-loop do
+                      (parse-identifier)
+                      (if (eq (peek) '=)
+                          (progn
+                            (force '=)
+                            (if (or (eq (peek) 's) (eq (peek) 'n))
+                                (parse-identifier)
+                              (parse-block))))
+                      until (eq (peek) '})))
+           (parse-identifier-idea ()
+             ;;(list 's '- 'n '\.n 'n) <- "walk-list"
+             ;;(list nil nil nil nil nil) <- init "force/allow list" (known length)
+             ;;the condititionals in p-i build the f-a list
+             ;;then finally once all conditionals are eval'd, walk list seq gets mapcar'd
+             ;;on smth like
+             ;;(lambda (f-a-lst walk-val)
+             ;;  (if (nth f-a-lst-idx f-a-lst) (force w-v) (allow w-v)))
+             ;;where f-a-lst-idx is +1'd each map somehow
+             ))
+        (parse-identifier)))
+)
 ;(defun parse-file ()
 ;  (cl-loop do
 ;           (parse-identifier)
-;           (expect '=)
+;           (force '=)
 ;           (parse-block)
 ;           until (eq (tok (1- i)) (tok i))(tok i 'eof))
-;  (expect 'eof)
-;  )
+;  (force 'eof))
 
 ;;; pdx-parser.el ends here
 
