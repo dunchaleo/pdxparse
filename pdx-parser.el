@@ -145,6 +145,7 @@
                           (skip (1+ pt)) (peek) as-type)
                  p)))
            ;;these are written very procedurally i.e. not functionally
+           ;;they are "supposed" to always have a return but dont always right now e.g. p-i on buf="n"
            (parse-identifier ()
              (if (eq (peek) 's)
                  (force 's)
@@ -163,9 +164,9 @@
                       (if (eq (peek) '=)
                           (progn
                             (force '=)
-                            (if (or (eq (peek) 's) (eq (peek) 'n))
-                                (parse-identifier)
-                              (parse-block)))))
+                            (if (eq (peek) '{)
+                                (parse-block)
+                              (parse-identifier)))))
              (force '}))
            (parse-file ()
              (cl-loop do

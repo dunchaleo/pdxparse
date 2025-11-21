@@ -1,18 +1,17 @@
 ;;; pdx-testing.el --- Description -*- lexical-binding: t; -*-
 ;;
-;;; Commentary:
 ;;  Description
+;;
+;; testing is convenient enough to do inside emacs already, setting this up wasnt worth it
 ;;
 
 (load-file "pdx-parser.el")
 
-
 ;;; testing
 
-;;
-;;this got carried away
 ;;FIXME redo T-E-O-I to only have 1 dolist (probably outer one), call it with mapcar
 
+;;the only really valuable thing these do is reset global buf to the specified param
 (defun TEST-EXPRESSIONS-ON-INPUTS (test-exps input-strings)
   ;;master tester
   (load-file "pdx-parser.el")
@@ -99,12 +98,28 @@
    ;;                              => ("other symbol" "equals" "open brace" "other symbol" "other symbol" "close brace" "end of file")
  )
 
+ ;;NOTE this testing is flimsy, i would like to be able to just call one of the parse-* funs from out here
+ ;;also proper error handling would help.
 (TEST-STR
- ;;can we parse a number expression?
- (list "-." "s" "-n")
-;; ' (lexemes-list) ;; => (n eof), => (n \. n eof), => (- n eof)
- (parser-container)
+ ;;can we validate good syntax?
+ (list "s={ n } n={ s }"    "n={-n -n.n  n= -n.n }"  "s = { }"  "s = { n=n.n s={n.n} }" "n={n={n={s s s}}}")
+ ' (parser-container)
  )
+;;lol so much for TEST-*, just eval these progn inline:
+(ignore-errors
+  ;;does bad syntax give an appropriate error?
+  (progn (setq buf "s={ n -s }") (parser-container))
+  ;;=> error "at 7: unexpected token ‘s’ (n)"
+  (progn (setq buf "{}") (parser-container))
+  ;;=> error "at 0: unexpected token ‘{’ (n)"
+  (progn (setq buf "s=s") (parser-container))
+  ;;=> error "at 2: unexpected token ‘s’ ({)"
+  (progn (setq buf "s={ n. }") (parser-container))
+  ;;=> error "at 7: unexpected token ‘}’ (n)"
+  (progn (setq buf "s={ s={ }") (parser-container))
+  ;;=> error "at 9: unexpected token ‘eof’ (n)"
+  (unset-my-shit)
+  )
 
 ;;; blah
 (defun unset-my-shit ()
