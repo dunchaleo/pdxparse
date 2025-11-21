@@ -23,12 +23,6 @@
     ('sym  "other symbol")
     ('eof "end of file")))
 
-
-;first try skipping all whitespace. parsing ``n = { s = n s = -n }'' is just as hard as ``n = { s = ns = -n }'' or other variation
-;  (being impossible to lex out ss or nn if you actually had real text input is besides the point)
-;then there'd be an implicit delimiter operator coming in after every s, n (unless = is next) and }
-;would this implicit delimiter be a token though?? probably not since it's literally not in the text
-
 ;idea: resize global ``buf'' +1 and (aset) new last elt nil, so we have actual nil-terminated C-like strings
 ;better idea: stop using strings. could have current buf instead of global string buf and rewrite funs with (point) rather than aref.
 ;  (most functions acting on buffer objects would have to be off limits)
@@ -83,7 +77,7 @@
         (cons
          (cons (skip (1+ i)) t)
          next-type)
-      ;;DONE eval error out of range when fails to tokenize at -1.
+      ;;DONE(todo) eval error out of range when fails to tokenize at -1.
       (if (>= i 0)
           ;harmlessly return i and token at i. (``(skip i)'' for > bounds)
           (cons (cons (skip i) nil) (scan i))
@@ -118,34 +112,32 @@
 
 ;;; parsing
 
-;; EBNF description
+;; EBNF-like description
 ;;
 ;;  file =
-;;  {ident "=" block} "eof" .
+;;  (ident '= block)* 'eof .
 ;;
 ;;  block =
-;;  "{" {[ident | ident "=" (ident | block)]} "}" .
+;;  '{ ([ident | ident "=" (ident | block)])* '} .
 ;;  ident =
-;;  string | ["-"] number [ "." number ] .
+;;  string | ['=] number [ '. number ] .
 
 ;;https://emacsdocs.org/docs/elisp/Errors TODO read
-
+;NOTE tok's "any-in-list" feature is still unused with this...
+;organized so that you pass in a symbol list of function names,
+;and so there can be a "global" pt
 (defun parser-container ()
     (let ((pt -1)
-          (token-stack nil))
+          )
       (cl-labels
-          (
-                                        ;naive, appending rets to data like this feels wrong
-                                        ; (token-push (p)
-                                        ;   (if (cdar p)
-                                        ;       (push (cdr (tok pt) token-stack))))
-           (peek () (cdr (tok pt)))
+          ;;helpers: peek,allow,force, non-terminals: parse-*
+          ((peek () (cdr (tok pt)))
            ;;accept,expect? try-consume,force-consume? permit,assert?
            ;;we use the word "expect" in ``tok'' already...
            (allow (&optional as-type)
              (let ((p (tok pt as-type)))
                (setq pt (caar p))
-               (if (cdar p) p))) ;(if (cdar p) (token-push p))
+               (if (cdar p) p)))
            (force (as-type)
              (let ((p (allow as-type)))
                (if (not (cdar p))
@@ -166,7 +158,7 @@
                    ))))
            (parse-block ()
              (force '{)
-             (cl-loop do until (eq (peek) '})
+             (cl-loop until (eq (peek) '}) do
                       (parse-identifier)
                       (if (eq (peek) '=)
                           (progn
@@ -175,26 +167,14 @@
                                 (parse-identifier)
                               (parse-block)))))
              (force '}))
-           (parse-identifier-idea ()
-             ;;this isnt it lol v........... why cant i just (collect) progn returns.....
-             ;;(list 's '- 'n '\.n 'n) <- "walk-list"
-             ;;(list nil nil nil nil nil) <- init "force/allow list" (known length)
-             ;;the condititionals in p-i build the f-a list
-             ;;then finally once all conditionals are eval'd, walk list seq gets mapcar'd
-             ;;on smth like
-             ;;(lambda (f-a-lst walk-val)
-             ;;  (if (nth f-a-lst-idx f-a-lst) (force w-v) (allow w-v)))
-             ;;where f-a-lst-idx is +1'd each map somehow
-             ))
-        (parse-identifier)))
-)
-;(defun parse-file ()
-;  (cl-loop do
-;           (parse-identifier)
-;           (force '=)
-;           (parse-block)
-;           until (eq (tok (1- i)) (tok i))(tok i 'eof))
-;  (force 'eof))
+           (parse-file ()
+             (cl-loop do
+              (parse-identifier)
+              (force '=)
+              (parse-block)
+              until (eq (peek) 'eof))
+             (force 'eof)))
+        (parse-file))))
 
 ;;; pdx-parser.el ends here
 
