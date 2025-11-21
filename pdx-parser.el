@@ -118,7 +118,7 @@
 ;;  (ident '= block)* 'eof .
 ;;
 ;;  block =
-;;  '{ ([ident | ident "=" (ident | block)])* '} .
+;;  '{ ([ident | ident '= (ident | block)])* '} .
 ;;  ident =
 ;;  string | ['=] number [ '. number ] .
 
@@ -169,11 +169,12 @@
              (force '}))
            (parse-file ()
              (cl-loop do
-              (parse-identifier)
-              (force '=)
-              (parse-block)
-              until (eq (peek) 'eof))
+                      (parse-identifier)
+                      (force '=)
+                      (parse-block)
+                      until (eq (peek) 'eof))
              (force 'eof)))
+
         (parse-file))))
 
 ;;; pdx-parser.el ends here
