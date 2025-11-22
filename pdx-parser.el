@@ -156,23 +156,34 @@
                      (progn
                        (force '\.)
                        (force 'n))
-                   ))))
-           (parse-block ()
-             (force '{)
-             (cl-loop until (eq (peek) '}) do
-                      (parse-identifier)
-                      (if (eq (peek) '=)
-                          (progn
-                            (force '=)
-                            (if (eq (peek) '{)
-                                (parse-block)
-                              (parse-identifier)))))
-             (force '}))
+                   )))
+             "some-identifier")
+           (parse-block ;different versions of smartparens or elisp-mode indent cl-labels differently lol
+            (block-name)
+            ;;block data structure: atomics (standalone idents), cons pairs (for ident=ident) and lists (inner blocks)
+            (let ((block-exp nil))
+              (force '{)
+              (push block-name block-exp)
+              (cl-loop until (eq (peek) '}) do
+                       ;push ident (it may be smart here to push like (to-string ident) if doing more than AST)
+                       ;NOTE this is ok for empty block thanks to until clause evaling up front
+                       (push (parse-identifier) block-exp)
+                       (if (eq (peek) '=)
+                           (progn
+                             (force '=)
+                             (if (eq (peek) '{)
+                                 ;;construct list w ident in ``ident = {}'' as fist elt
+                                 ;;(pop exp => ident, use it as arg for recursive call)
+                                 (push (parse-block (pop block-exp)) block-exp)
+                               ;;cons cell (ident . ident2) in ``ident = ident2''
+                               (push (cons (pop block-exp) (parse-identifier)) block-exp)))))
+              (force '})
+              block-exp))
            (parse-file ()
              (cl-loop do
                       (parse-identifier)
                       (force '=)
-                      (parse-block)
+                      (parse-block) ;NOTE remember initial call here needs param block name
                       until (eq (peek) 'eof))
              (force 'eof)))
 
@@ -180,4 +191,12 @@
 
 ;;; pdx-parser.el ends here
 
+
+;temp from testing (parse-block "test")
+;ELISP> (setq buf "{n=n n={n}}")
+;"{n=n n={n}}"
+;ELISP> (parser-container)
+;(("some-identifier" "some-identifier")
+; ("some-identifier" . "some-identifier")
+; "test")
 
