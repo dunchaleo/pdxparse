@@ -120,7 +120,7 @@
 ;;  block =
 ;;  '{ ([ident | ident '= (ident | block)])* '} .
 ;;  ident =
-;;  string | ['=] number [ '. number ] .
+;;  string | ['-] number [ '. number ] .
 
 ;;https://emacsdocs.org/docs/elisp/Errors TODO read
 ;NOTE tok's "any-in-list" feature is still unused with this...
