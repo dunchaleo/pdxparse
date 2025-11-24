@@ -113,24 +113,31 @@
 ;;; parsing
 
 ;; EBNF-like description
+;; () grouping
+;; | alternative
+;; * repeat 0 or more times   (also common {})
+;; ? optional                 (also common [])
+;; 'x terminal x              (also common "")
+;; =. define production rule (for nonterminal)
+;;
 ;;
 ;;  file =
 ;;  (ident '= block)* 'eof .
 ;;
 ;;  block =
-;;  '{ ([ident | ident '= (ident | block)])* '} .
+;;  '{ (ident | ident '= (ident | block))* '} .
 ;;  ident =
-;;  string | ['-] number [ '. number ] .
+;;  's | '-? 'n ('. 'n)? .
+;;
 
 ;;https://emacsdocs.org/docs/elisp/Errors TODO read
 ;NOTE tok's "any-in-list" feature is still unused with this...
-;organized so that you pass in a symbol list of function names,
-;and so there can be a "global" pt
+;organized so there can be a "global" pt
 (defun parser-container ()
     (let ((pt -1)
           )
       (cl-labels
-          ;;helpers: peek,allow,force, non-terminals: parse-*
+          ;;helpers: peek,allow,force,expr-to-string;  non-terminals: parse-*
           ((peek () (cdr (tok pt)))
            ;;accept,expect? try-consume,force-consume? permit,assert?
            ;;we use the word "expect" in ``tok'' already...
@@ -144,20 +151,22 @@
                    (error "at %s: unexpected token `%s' (%s)"
                           (skip (1+ pt)) (peek) as-type)
                  p)))
+           (expr-to-str (expr)
+             (mapconcat 'symbol-name expr))
            ;;these are written very procedurally i.e. not functionally
-           ;;they are "supposed" to always have a return but dont always right now e.g. p-i on buf="n"
            (parse-identifier ()
-             (if (eq (peek) 's)
-                 (force 's)
-               (progn
-                 (allow '-)
-                 (force 'n)
-                 (if (eq (peek) '\.)
-                     (progn
-                       (force '\.)
-                       (force 'n))
-                   )))
-             "some-identifier")
+             (let ((ident-exp nil))
+               (if (eq (peek) 's)
+                   (push (cdr (force 's)) ident-exp)
+                 (progn
+                   (if (allow '-) (push '- ident-exp)) ;ugh
+                   (push (cdr (force 'n)) ident-exp)
+                   (if (eq (peek) '\.)
+                       (progn
+                         (push (cdr (force '\.)) ident-exp)
+                         (push (cdr (force 'n)) ident-exp)))))
+               (reverse ident-exp)))
+           ;;NOTE right now this is filling a data structure thats NOT the AST, p-i is still returning an AST node right now
            (parse-block ;different versions of smartparens or elisp-mode indent cl-labels differently lol
             (block-name)
             ;;block data structure: atomics (standalone idents), cons pairs (for ident=ident) and lists (inner blocks)
@@ -165,9 +174,9 @@
               (force '{)
               (push block-name block-exp)
               (cl-loop until (eq (peek) '}) do
-                       ;push ident (it may be smart here to push like (to-string ident) if doing more than AST)
+                       ;push ident
                        ;NOTE this is ok for empty block thanks to until clause evaling up front
-                       (push (parse-identifier) block-exp)
+                       (push (expr-to-str (parse-identifier)) block-exp)
                        (if (eq (peek) '=)
                            (progn
                              (force '=)
@@ -176,16 +185,19 @@
                                  ;;(pop exp => ident, use it as arg for recursive call)
                                  (push (parse-block (pop block-exp)) block-exp)
                                ;;cons cell (ident . ident2) in ``ident = ident2''
-                               (push (cons (pop block-exp) (parse-identifier)) block-exp)))))
+                               (push (cons (pop block-exp) (expr-to-str (parse-identifier))) block-exp)))))
               (force '})
-              block-exp))
+              (reverse block-exp)))
            (parse-file ()
-             (cl-loop do
-                      (parse-identifier)
-                      (force '=)
-                      (parse-block) ;NOTE remember initial call here needs param block name
-                      until (eq (peek) 'eof))
-             (force 'eof)))
+             (let ((file-exp nil))
+               (cl-loop do
+                        (push (expr-to-str (parse-identifier)) file-exp)
+                        (force '=)
+                        (push (parse-block (pop file-exp)) file-exp)
+                        until (eq (peek) 'eof))
+               (force 'eof)
+               (push 'eof file-exp)
+               (reverse file-exp))))
 
         (parse-file))))
 
