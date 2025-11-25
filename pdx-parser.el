@@ -135,37 +135,48 @@
 ;organized so there can be a "global" pt
 (defun parser-container ()
     (let ((pt -1)
-          )
+          (state nil)
+          (acc 0))
       (cl-labels
-          ;;helpers: peek,allow,force,expr-to-string;  non-terminals: parse-*
+          ;;helpers: allow,force are used for their side-effects.
+          ;;procedures for non-terminals: parse-*
           ((peek () (cdr (tok pt)))
            ;;accept,expect? try-consume,force-consume? permit,assert?
            ;;we use the word "expect" in ``tok'' already...
            (allow (&optional as-type)
              (let ((p (tok pt as-type)))
+               ;;redundant now since keeping state stack: pt is (caar (car state))
                (setq pt (caar p))
-               (if (cdar p) p)))
+               (if (cdar p) (progn ;;accumulator++, to track how many times to pop
+                              (setq acc (1+ acc)) (push p state)))))
            (force (as-type)
              (let ((p (allow as-type)))
                (if (not (cdar p))
                    (error "at %s: unexpected token `%s' (%s)"
                           (skip (1+ pt)) (peek) as-type)
                  p)))
-           (expr-to-str (expr)
-             (mapconcat 'symbol-name expr))
-           ;;these are written very procedurally i.e. not functionally
+           ;; new for nonterm procedures:
+           ;; instead of building -exp return list by (push (force 'x) [-exp]),
+           ;; ``allow'' now pushes to a state stack and nonterm expression is built
+           ;; by pushing (pop state) to it. means theres no need to reverse before return.
+           ;; (and it could be extended for precedence. although building a list in reverse
+           ;; and calling reverse is apparently pretty normal in lisp?)
+           ;;NOTE these are written very procedurally i.e. not functionally
            (parse-identifier ()
-             (let ((ident-exp nil))
+             (let ((ident-exp nil) (acc-init acc))
                (if (eq (peek) 's)
-                   (push (cdr (force 's)) ident-exp)
+                   (force 's)
+                 ;;how to handle number exps? you could just have the parser check for syntax validity and throw it into atof().
+                 ;;then you could have a number type as the thing in the built tree. question is what you want the data structure to be.
                  (progn
-                   (if (allow '-) (push '- ident-exp)) ;ugh
-                   (push (cdr (force 'n)) ident-exp)
+                   (allow '-)
+                   (force 'n)
                    (if (eq (peek) '\.)
                        (progn
-                         (push (cdr (force '\.)) ident-exp)
-                         (push (cdr (force 'n)) ident-exp)))))
-               (reverse ident-exp)))
+                         (force '\.)
+                         (force 'n)))))
+               (cl-loop repeat (- acc acc-init) do (push (cdr (pop state)) ident-exp))
+               ident-exp))
            ;;NOTE right now this is filling a data structure thats NOT the AST, p-i is still returning an AST node right now
            (parse-block ;different versions of smartparens or elisp-mode indent cl-labels differently lol
             (block-name)
