@@ -161,7 +161,9 @@
              ;;here, it works like the atof(ident-exp) option in comment in ``p-i''. it's just concatenating instead of making a float.
                (cl-loop repeat (- acc acc-init) do (push (cdr (pop state)) ident-exp))
                ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
-               (push ident-exp state)))
+               (push ident-exp state))
+             ;;compile rebuilds result into state stack, so the accumulator only has 1 more object
+             (setq acc (1+ acc-init)))
            (compile-block-expr (acc-init)
              (let ((block-exp nil) (val nil))
                (pop state) ;  '}
@@ -173,7 +175,7 @@
                         ;;  (imagine an "assignment" nonterminal)
                         (let ((obj (pop state)))
                           (setq val
-                                (if (eq (cdr obj) '=)
+                                (if (eq (cdr obj) '=) ;this sucks
                                     ;;cons cell (ident . ident2) in ``ident = ident2''
                                     (cons (pop state) val)
                                   obj))
@@ -183,7 +185,8 @@
                ;;ident in ``ident = {}'' as fist elt:
                (push (pop state) block-exp)
                ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
-               (push block-exp state)))
+               (push block-exp state))
+             (setq acc (1+ acc-init)))
            ;; new for nonterm procedures:
            ;; instead of building -exp return list by (push (force 'x) [-exp]),
            ;; ``allow'' now pushes to a state stack and nonterm expression is built
@@ -204,10 +207,10 @@
                        (progn
                          (force '\.)
                          (force 'n)))))
-               (compile-ident-exp acc-init)))
+               (compile-ident-expr acc-init)))
            (parse-block ()
             ;;block data structure: atomics (standalone idents), cons pairs (for ident=ident) and lists (inner blocks)
-            (let ((acc-init acc)) ;?
+            (let ((acc-init (+ acc 2)))
               (force '{)
               (cl-loop until (eq (peek) '}) do
                        ;push ident
@@ -216,11 +219,12 @@
                        (if (eq (peek) '=)
                            (progn
                              (force '=)
+                             (setq acc (1+ acc)) ;;;;;;;;;see line 178
                              (if (eq (peek) '{)
                                  (parse-block)
                                (parse-identifier)))))
               (force '})
-              (compile-block-expr)))
+              (compile-block-expr acc-init)))
           ; (parse-file () ;TODO
           ;   (let ((file-exp nil))
           ;     (cl-loop do
@@ -232,12 +236,13 @@
           ;     (push 'eof file-exp)
           ;     (reverse file-exp))))
            )
-        (parse-block))))
+        (parse-block))
+      state))
 
 ;;; pdx-parser.el ends here
 
 
-;temp from testing (parse-block "test")
+;OLD temp from testing (parse-block "test")
 ;ELISP> (setq buf "{n=n n={n}}")
 ;"{n=n n={n}}"
 ;ELISP> (parser-container)
@@ -245,3 +250,19 @@
 ; ("some-identifier" . "some-identifier")
 ; "test")
 
+
+;temp from testing
+;
+;ELISP> (parser-container)
+;((nil (n) (n \. n) (- n) (s)))
+;
+;ELISP> buf
+;"{n n.n -ns}"
+;
+;ELISP> (setq buf "{s n = {-n.n s} s = {s s=s s={s s}}}")
+;"{s n = {-n.n s} s = {s s=s s={s s}}}"
+;
+;ELISP> (parser-container)
+;((nil nil nil nil nil nil nil nil nil nil nil nil nil
+;      (nil nil nil ((0 . t) . {) (s) ((n) (- n \. n) (s)) ((s) (20 . t) . {)
+;           ((20 . t) . {) (s) ((s) s) (s) ((s) (s) (s)))))
