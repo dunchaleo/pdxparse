@@ -163,16 +163,21 @@
                ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
                (push ident-exp state)))
            (compile-block-expr (acc-init)
-             (let ((block-exp nil) )
+             (let ((block-exp nil) (val nil))
                (pop state) ;  '}
                (cl-loop repeat (- acc acc-init) do
                         ;;there's no place to do this but here--filtering the '= tokens from the state stack in the case of ident=ident in a block
                         ;;(and forming the cons pair appropriately)
-                        ;;then we can also make sure to push single symbols in for standalone idents
+                        ;;TODO then we can also make sure to push single symbols in for standalone idents. (or in compile ident?)
+                        ;;this is so bad maybe because the grammar doesnt go well with the desired data struct?
+                        ;;  (imagine an "assignment" nonterminal)
                         (let ((obj (pop state)))
-                          (if (eq (cdr obj) '=)
-                              (push )
-                          (push obj block-exp)))
+                          (setq val
+                                (if (eq (cdr obj) '=)
+                                    ;;cons cell (ident . ident2) in ``ident = ident2''
+                                    (cons (pop state) val)
+                                  obj))
+                          (push val block-exp)))
                (pop state) ;  '=
                (pop state) ;  '{
                ;;ident in ``ident = {}'' as fist elt:
@@ -200,7 +205,7 @@
                          (force '\.)
                          (force 'n)))))
                (compile-ident-exp acc-init)))
-           (parse-block (block-name)
+           (parse-block ()
             ;;block data structure: atomics (standalone idents), cons pairs (for ident=ident) and lists (inner blocks)
             (let ((acc-init acc)) ;?
               (force '{)
@@ -212,26 +217,22 @@
                            (progn
                              (force '=)
                              (if (eq (peek) '{)
-                                 ;;(pop exp => ident, use it as arg for recursive call)
-                                 ;;(push (parse-block (pop block-exp)) block-exp)
                                  (parse-block)
-                               ;;cons cell (ident . ident2) in ``ident = ident2''
-                               ;;(push (cons (pop block-exp) (expr-to-str (parse-identifier))) block-exp)))))
                                (parse-identifier)))))
               (force '})
               (compile-block-expr)))
-           (parse-file ()
-             (let ((file-exp nil))
-               (cl-loop do
-                        (push (expr-to-str (parse-identifier)) file-exp)
-                        (force '=)
-                        (push (parse-block (pop file-exp)) file-exp)
-                        until (eq (peek) 'eof))
-               (force 'eof)
-               (push 'eof file-exp)
-               (reverse file-exp))))
-
-        (parse-file))))
+          ; (parse-file () ;TODO
+          ;   (let ((file-exp nil))
+          ;     (cl-loop do
+          ;              (push (expr-to-str (parse-identifier)) file-exp)
+          ;              (force '=)
+          ;              (push (parse-block (pop file-exp)) file-exp)
+          ;              until (eq (peek) 'eof))
+          ;     (force 'eof)
+          ;     (push 'eof file-exp)
+          ;     (reverse file-exp))))
+           )
+        (parse-block))))
 
 ;;; pdx-parser.el ends here
 
