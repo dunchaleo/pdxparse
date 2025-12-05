@@ -155,6 +155,10 @@
                    (error "at %s: unexpected token `%s' (%s)"
                           (skip (1+ pt)) (peek) as-type)
                  p)))
+           (compile-ident-expr (acc-init)
+             ;;TODO for real multichar tokens, this will need to be updated
+             ;;here, it works like the atof(ident-exp) option in comment in ``p-i''.
+             )
            ;; new for nonterm procedures:
            ;; instead of building -exp return list by (push (force 'x) [-exp]),
            ;; ``allow'' now pushes to a state stack and nonterm expression is built
@@ -177,10 +181,9 @@
                          (force 'n)))))
                (cl-loop repeat (- acc acc-init) do (push (cdr (pop state)) ident-exp))
                ident-exp))
-           ;;NOTE right now this is filling a data structure thats NOT the AST, p-i is still returning an AST node right now
-           (parse-block ;different versions of smartparens or elisp-mode indent cl-labels differently lol
-            (block-name)
+           (parse-block (block-name)
             ;;block data structure: atomics (standalone idents), cons pairs (for ident=ident) and lists (inner blocks)
+            ;;but for now, staying aligned with making more of an AST than a data structure...
             (let ((block-exp nil))
               (force '{)
               (push block-name block-exp)

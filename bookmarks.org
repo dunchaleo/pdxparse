@@ -1,0 +1,17 @@
+*** some links to read
+
+- [[https://nullprogram.com/blog/2012/09/20/]]
+
+- [[https://www.engr.mun.ca/~theo/Misc/exp_parsing.htm]]
+
+- [[https://www.cs.utexas.edu/ftp/garbage/cs345/schintro-v13/schintro_115.html]]
+
+
+#+BEGIN_SRC elisp
+(with-current-buffer (current-buffer)
+  (goto-char (point-min))
+  (cl-loop until
+           (string= (org-next-link) "No further link found") do
+           (+org/yank-link)
+           (shell-command (format "wget %s" (pop kill-ring)))))
+#+END_SRC
