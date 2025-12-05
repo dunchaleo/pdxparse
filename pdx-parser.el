@@ -156,9 +156,29 @@
                           (skip (1+ pt)) (peek) as-type)
                  p)))
            (compile-ident-expr (acc-init)
-             ;;TODO for real multichar tokens, this will need to be updated
-             ;;here, it works like the atof(ident-exp) option in comment in ``p-i''.
-             )
+             (let ((ident-exp nil))
+             ;;TODO for real multichar tokens, this will need to be updated.
+             ;;here, it works like the atof(ident-exp) option in comment in ``p-i''. it's just concatenating instead of making a float.
+               (cl-loop repeat (- acc acc-init) do (push (cdr (pop state)) ident-exp))
+               ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
+               (push ident-exp state)))
+           (compile-block-expr (acc-init)
+             (let ((block-exp nil) )
+               (pop state) ;  '}
+               (cl-loop repeat (- acc acc-init) do
+                        ;;there's no place to do this but here--filtering the '= tokens from the state stack in the case of ident=ident in a block
+                        ;;(and forming the cons pair appropriately)
+                        ;;then we can also make sure to push single symbols in for standalone idents
+                        (let ((obj (pop state)))
+                          (if (eq (cdr obj) '=)
+                              (push )
+                          (push obj block-exp)))
+               (pop state) ;  '=
+               (pop state) ;  '{
+               ;;ident in ``ident = {}'' as fist elt:
+               (push (pop state) block-exp)
+               ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
+               (push block-exp state)))
            ;; new for nonterm procedures:
            ;; instead of building -exp return list by (push (force 'x) [-exp]),
            ;; ``allow'' now pushes to a state stack and nonterm expression is built
@@ -167,7 +187,7 @@
            ;; and calling reverse is apparently pretty normal in lisp?)
            ;;NOTE these are written very procedurally i.e. not functionally
            (parse-identifier ()
-             (let ((ident-exp nil) (acc-init acc))
+             (let ((acc-init acc))
                (if (eq (peek) 's)
                    (force 's)
                  ;;how to handle number exps? you could just have the parser check for syntax validity and throw it into atof().
@@ -179,29 +199,27 @@
                        (progn
                          (force '\.)
                          (force 'n)))))
-               (cl-loop repeat (- acc acc-init) do (push (cdr (pop state)) ident-exp))
-               ident-exp))
+               (compile-ident-exp acc-init)))
            (parse-block (block-name)
             ;;block data structure: atomics (standalone idents), cons pairs (for ident=ident) and lists (inner blocks)
-            ;;but for now, staying aligned with making more of an AST than a data structure...
-            (let ((block-exp nil))
+            (let ((acc-init acc)) ;?
               (force '{)
-              (push block-name block-exp)
               (cl-loop until (eq (peek) '}) do
                        ;push ident
                        ;NOTE this is ok for empty block thanks to until clause evaling up front
-                       (push (expr-to-str (parse-identifier)) block-exp)
+                       (parse-identifier)
                        (if (eq (peek) '=)
                            (progn
                              (force '=)
                              (if (eq (peek) '{)
-                                 ;;construct list w ident in ``ident = {}'' as fist elt
                                  ;;(pop exp => ident, use it as arg for recursive call)
-                                 (push (parse-block (pop block-exp)) block-exp)
+                                 ;;(push (parse-block (pop block-exp)) block-exp)
+                                 (parse-block)
                                ;;cons cell (ident . ident2) in ``ident = ident2''
-                               (push (cons (pop block-exp) (expr-to-str (parse-identifier))) block-exp)))))
+                               ;;(push (cons (pop block-exp) (expr-to-str (parse-identifier))) block-exp)))))
+                               (parse-identifier)))))
               (force '})
-              (reverse block-exp)))
+              (compile-block-expr)))
            (parse-file ()
              (let ((file-exp nil))
                (cl-loop do
