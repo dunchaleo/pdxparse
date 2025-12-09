@@ -156,36 +156,34 @@
                           (skip (1+ pt)) (peek) as-type)
                  p)))
            (compile-ident-expr (acc-init)
-             (let ((ident-exp nil))
+             (let ((ident-expr nil)
+                   (n (- acc acc-init)))
              ;;TODO for real multichar tokens, this will need to be updated.
-             ;;here, it works like the atof(ident-exp) option in comment in ``p-i''. it's just concatenating instead of making a float.
-               (cl-loop repeat (- acc acc-init) do (push (cdr (pop state)) ident-exp))
+             ;;here, it works like the atof(ident-expr) option in comment in ``p-i''. it's just concatenating instead of making a float.
+               (cl-loop repeat (n) do (push (cdr (pop state)) ident-expr))
                ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
-               (push ident-exp state))
+               (push ident-expr state))
              ;;compile rebuilds result into state stack, so the accumulator only has 1 more object
              (setq acc (1+ acc-init)))
            (compile-block-expr (acc-init)
-             (let ((block-exp nil) (val nil))
+             (let ((block-expr nil)
+                   (n ; -2 for '{ and '}
+                    (- acc acc-init 2)))
                (pop state) ;  '}
-               (cl-loop repeat (- acc acc-init) do
-                        ;;there's no place to do this but here--filtering the '= tokens from the state stack in the case of ident=ident in a block
-                        ;;(and forming the cons pair appropriately)
-                        ;;TODO then we can also make sure to push single symbols in for standalone idents. (or in compile ident?)
+               (cl-loop repeat (n) do
                         ;;this is so bad maybe because the grammar doesnt go well with the desired data struct?
                         ;;  (imagine an "assignment" nonterminal)
-                        (let ((obj (pop state)))
-                          (setq val
-                                (if (eq (cdr obj) '=) ;this sucks
-                                    ;;cons cell (ident . ident2) in ``ident = ident2''
-                                    (cons (pop state) val)
-                                  obj))
-                          (push val block-exp)))
-               (pop state) ;  '=
+                        ;;trying to make an expressive structure for the data now, even a single ident in a block is stored as a list
+                        (let ((p (pop state)))
+                          (if (eq (cdr p) '=)
+                              (push (pop state) block-expr) ; i think theres a nice coincidence here about block name still being car of block expr
+                            (push p block-expr))
+                          (push val block-expr)))
                (pop state) ;  '{
-               ;;ident in ``ident = {}'' as fist elt:
-               (push (pop state) block-exp)
+               (pop state) ;  '=
+               (pop state) ; 'ident
                ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
-               (push block-exp state))
+               (push block-expr state))
              (setq acc (1+ acc-init)))
            ;; new for nonterm procedures:
            ;; instead of building -exp return list by (push (force 'x) [-exp]),
@@ -210,6 +208,7 @@
                (compile-ident-expr acc-init)))
            (parse-block ()
             ;;block data structure: atomics (standalone idents), cons pairs (for ident=ident) and lists (inner blocks)
+            ;;UPDATE: not true anymore, see compile-block-expr
             (let ((acc-init (+ acc 2)))
               (force '{)
               (cl-loop until (eq (peek) '}) do
@@ -219,7 +218,6 @@
                        (if (eq (peek) '=)
                            (progn
                              (force '=)
-                             (setq acc (1+ acc)) ;;;;;;;;;see line 178
                              (if (eq (peek) '{)
                                  (parse-block)
                                (parse-identifier)))))
