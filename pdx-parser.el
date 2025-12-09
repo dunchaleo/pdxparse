@@ -160,7 +160,7 @@
                    (n (- acc acc-init)))
              ;;TODO for real multichar tokens, this will need to be updated.
              ;;here, it works like the atof(ident-expr) option in comment in ``p-i''. it's just concatenating instead of making a float.
-               (cl-loop repeat (n) do (push (cdr (pop state)) ident-expr))
+               (cl-loop repeat n do (push (cdr (pop state)) ident-expr))
                ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
                (push ident-expr state))
              ;;compile rebuilds result into state stack, so the accumulator only has 1 more object
@@ -170,18 +170,16 @@
                    (n ; -2 for '{ and '}
                     (- acc acc-init 2)))
                (pop state) ;  '}
-               (cl-loop repeat (n) do
+               (cl-loop repeat n do
                         ;;this is so bad maybe because the grammar doesnt go well with the desired data struct?
                         ;;  (imagine an "assignment" nonterminal)
                         ;;trying to make an expressive structure for the data now, even a single ident in a block is stored as a list
                         (let ((p (pop state)))
-                          (if (eq (cdr p) '=)
+                          (if (eq (cdr p) '=) ;FIXME when pop state is a compiled object not a tokenized parser obj
                               (push (pop state) block-expr) ; i think theres a nice coincidence here about block name still being car of block expr
                             (push p block-expr))
-                          (push val block-expr)))
+                          (push p block-expr)))
                (pop state) ;  '{
-               (pop state) ;  '=
-               (pop state) ; 'ident
                ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
                (push block-expr state))
              (setq acc (1+ acc-init)))
@@ -209,7 +207,7 @@
            (parse-block ()
             ;;block data structure: atomics (standalone idents), cons pairs (for ident=ident) and lists (inner blocks)
             ;;UPDATE: not true anymore, see compile-block-expr
-            (let ((acc-init (+ acc 2)))
+            (let ((acc-init acc))
               (force '{)
               (cl-loop until (eq (peek) '}) do
                        ;push ident
