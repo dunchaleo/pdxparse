@@ -166,19 +166,19 @@
              ;;compile rebuilds result into state stack, so the accumulator only has 1 more object
              (setq acc (1+ acc-init)))
            (compile-block-expr (acc-init)
-             (let ((block-expr nil)
+             (let ((block-expr nil) (obj nil) (key-val nil)
                    (n ; -2 for '{ and '}
                     (- acc acc-init 2)))
                (pop state) ;  '}
-               (cl-loop repeat n do
+               (cl-loop repeat (ceiling (/ n 3)) do ;NOTE counting trick
                         ;;this is so bad maybe because the grammar doesnt go well with the desired data struct?
                         ;;  (imagine an "assignment" nonterminal)
-                        ;;trying to make an expressive structure for the data now, even a single ident in a block is stored as a list
-                        (let ((p (pop state)))
-                          (if (eq (cdr p) '=) ;FIXME when pop state is a compiled object not a tokenized parser obj
-                              (push (pop state) block-expr) ; i think theres a nice coincidence here about block name still being car of block expr
-                            (push p block-expr))
-                          (push p block-expr)))
+                        ;;intended to be a more expressive data format
+                        (let ((obj nil))
+                          (push (pop state) obj) ;key
+                          (pop state) ;'=
+                          (push (pop state) obj) ;val
+                          (push obj block-expr)))
                (pop state) ;  '{
                ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
                (push block-expr state))
@@ -247,18 +247,23 @@
 ; "test")
 
 
-;temp from testing
+
+;CURRENT (from this commit) testing
+;
+;ELISP> (setq buf "{n=n n=n.n n=-n }")
+;"{n=n n=n.n n=-n }"
 ;
 ;ELISP> (parser-container)
-;((nil (n) (n \. n) (- n) (s)))
+;((((n) (n)) ((n) (n \. n)) ((n) (- n))))
 ;
-;ELISP> buf
-;"{n n.n -ns}"
-;
-;ELISP> (setq buf "{s n = {-n.n s} s = {s s=s s={s s}}}")
-;"{s n = {-n.n s} s = {s s=s s={s s}}}"
+;ELISP> (setq buf "{n={ n=s }}")
+;"{n={ n=s }}"
 ;
 ;ELISP> (parser-container)
-;((nil nil nil nil nil nil nil nil nil nil nil nil nil
-;      (nil nil nil ((0 . t) . {) (s) ((n) (- n \. n) (s)) ((s) (20 . t) . {)
-;           ((20 . t) . {) (s) ((s) s) (s) ((s) (s) (s)))))
+;((((n) (((n) (s))))))
+;
+;ELISP> (setq buf "{n=n.n  n={n.n=n.n}}")
+;"{n=n.n  n={n.n=n.n}}"
+;
+;ELISP> (parser-container)
+;((((n) (n \. n)) ((n) (((n \. n) (n \. n))))))
