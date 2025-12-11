@@ -173,12 +173,11 @@
                (cl-loop repeat (ceiling (/ n 3)) do ;NOTE counting trick
                         ;;this is so bad maybe because the grammar doesnt go well with the desired data struct?
                         ;;  (imagine an "assignment" nonterminal)
-                        ;;intended to be a more expressive data format
-                        (let ((obj nil))
-                          (push (pop state) obj) ;val
-                          (pop state) ;'=
-                          (push (pop state) obj) ;key
-                          (push obj block-expr)))
+                        ;;intended to be a less expressive/more compact data format
+                        ;;  (it's not, this is the same result as the other branch, but looks better)
+                        ;;make a cons out of val in ``key=val'' to delimit the objects in block expression
+                        (let ((val (cons (pop state) nil)) (key (progn (pop state) (pop state))))
+                          (push (push key val) block-expr))) ;val mutates here but thats ok
                (pop state) ;  '{
                ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
                (push block-expr state))
@@ -248,38 +247,14 @@
 
 
 
-;CURRENT (from this commit) testing
-;
-;ELISP> (setq buf "{n=n n=n.n n=-n }")
-;"{n=n n=n.n n=-n }"
+;CURRENT testing
 ;
 ;ELISP> (parser-container)
-;((((n) (n)) ((n) (n \. n)) ((n) (- n))))
+;((((n) (n))))   ;buf {n=n}
 ;
-;ELISP> (setq buf "{n={ n=s }}")
-;"{n={ n=s }}"
-;
-;ELISP> (parser-container)
-;((((n) (((n) (s))))))
-;
-;ELISP> (setq buf "{n=n.n  n={n.n=n.n}}")
-;"{n=n.n  n={n.n=n.n}}"
+;ELISP> (setq buf "{s={n=n.n s=s}}")
+;"{s={n=n.n s=s}}"
 ;
 ;ELISP> (parser-container)
-;((((n) (n \. n)) ((n) (((n \. n) (n \. n))))))
-
-;ELISP> (setq buf "{n={s=s}}")
-;"{n={s=s}}"
+;((((s) (((n) (n \. n)) ((s) (s))))))
 ;
-;ELISP> (parser-container)
-;((((n) (((s) (s))))))
-;
-;notes on last example:
-;~= (((n ((s s)))))
-;
-;state n={s=s} i.e (} s = s { = n)
-;(s s) -> () BEXP = ((s s))
-;                 -> (= n) STATE = (((s s)) = n)
-;state n=((s s)) i.e (((s s)) = n)
-;(n ((s s)))  -> () BEXP = ((n ((s s))))
-;                  -> () STATE = (((n ((s s)))))
