@@ -175,9 +175,9 @@
                         ;;  (imagine an "assignment" nonterminal)
                         ;;intended to be a more expressive data format
                         (let ((obj nil))
-                          (push (pop state) obj) ;key
-                          (pop state) ;'=
                           (push (pop state) obj) ;val
+                          (pop state) ;'=
+                          (push (pop state) obj) ;key
                           (push obj block-expr)))
                (pop state) ;  '{
                ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
