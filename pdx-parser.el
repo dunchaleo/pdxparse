@@ -267,3 +267,19 @@
 ;
 ;ELISP> (parser-container)
 ;((((n) (n \. n)) ((n) (((n \. n) (n \. n))))))
+
+;ELISP> (setq buf "{n={s=s}}")
+;"{n={s=s}}"
+;
+;ELISP> (parser-container)
+;((((n) (((s) (s))))))
+;
+;notes on last example:
+;~= (((n ((s s)))))
+;
+;state n={s=s} i.e (} s = s { = n)
+;(s s) -> () BEXP = ((s s))
+;                 -> (= n) STATE = (((s s)) = n)
+;state n=((s s)) i.e (((s s)) = n)
+;(n ((s s)))  -> () BEXP = ((n ((s s))))
+;                  -> () STATE = (((n ((s s)))))
