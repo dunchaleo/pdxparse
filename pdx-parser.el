@@ -174,11 +174,9 @@
                         ;;this is so bad maybe because the grammar doesnt go well with the desired data struct?
                         ;;  (imagine an "assignment" nonterminal)
                         ;;intended to be a more expressive data format
-                        (let ((obj nil))
-                          (push (pop state) obj) ;val
-                          (pop state) ;'=
-                          (push (pop state) obj) ;key
-                          (push obj block-expr)))
+                        ;;make a cons out of val in ``key=val'' to delimit the objects in block expression
+                        (let ((val (cons (pop state) nil)) (key (progn (pop state) (pop state))))
+                          (push (push key val) block-expr))) ;val mutates here but thats ok
                (pop state) ;  '{
                ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
                (push block-expr state))
