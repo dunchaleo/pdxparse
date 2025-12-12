@@ -173,11 +173,10 @@
                (cl-loop repeat (ceiling (/ n 3)) do ;NOTE counting trick
                         ;;this is so bad maybe because the grammar doesnt go well with the desired data struct?
                         ;;  (imagine an "assignment" nonterminal)
-                        ;;intended to be a less expressive/more compact data format
-                        ;;  (it's not, this is the same result as the other branch, but looks better)
-                        ;;make a cons out of val in ``key=val'' to delimit the objects in block expression
-                        (let ((val (cons (pop state) nil)) (key (progn (pop state) (pop state))))
-                          (push (push key val) block-expr))) ;val mutates here but thats ok
+                        ;;intended to be a less expressive/more compact data format where block name is first elt
+                        ;;NOTE this can only deal with blocks where all elts are assignments, no single idents
+                        (let ((val (pop state)) (key (progn (pop state) (pop state))))
+                          (push (cons key val) block-expr)))
                (pop state) ;  '{
                ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
                (push block-expr state))
@@ -237,24 +236,21 @@
 ;;; pdx-parser.el ends here
 
 
-;OLD temp from testing (parse-block "test")
-;ELISP> (setq buf "{n=n n={n}}")
-;"{n=n n={n}}"
-;ELISP> (parser-container)
-;(("some-identifier" "some-identifier")
-; ("some-identifier" . "some-identifier")
-; "test")
-
-
-
-;CURRENT testing
+;ELISP>
+;(setq buf "{s={n=n n.n=n.n -n=-n}}")
+;"{s={n=n n.n=n.n -n=-n}}"
 ;
 ;ELISP> (parser-container)
-;((((n) (n))))   ;buf {n=n}
+;((((s) ((n) n) ((n \. n) n \. n) ((- n) - n))))
 ;
-;ELISP> (setq buf "{s={n=n.n s=s}}")
-;"{s={n=n.n s=s}}"
+;ELISP> (setq buf "{s=-n.n}")
+;"{s=-n.n}"
 ;
 ;ELISP> (parser-container)
-;((((s) (((n) (n \. n)) ((s) (s))))))
+;((((s) - n \. n)))
 ;
+;ELISP> (setq buf "{s=-n.n n=-n}")
+;"{s=-n.n n=-n}"
+;
+;ELISP> (parser-container)
+;((((s) - n \. n) ((n) - n)))
