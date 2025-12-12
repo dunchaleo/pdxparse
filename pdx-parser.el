@@ -1,9 +1,11 @@
 ;;; pdx-parser.el --- Description -*- lexical-binding: t; -*-
 ;;
 ;;; Commentary:
-;; ideally this should be convertable to scheme with find/replace except for i/o.
-;; elisp has a lot of built in functionality for working with text that are unused here.
-;;  Description
+;;
+;; branch elisp-features: use emacs' core buffer mechanics instead to cheat tokenizing stage.
+;; aim to emit like a token stream.
+;;
+;; Description
 ;;
 ;;; Code:
 
@@ -23,23 +25,15 @@
     ('sym  "other symbol")
     ('eof "end of file")))
 
-;idea: resize global ``buf'' +1 and (aset) new last elt nil, so we have actual nil-terminated C-like strings
-;better idea: stop using strings. could have current buf instead of global string buf and rewrite funs with (point) rather than aref.
-;  (most functions acting on buffer objects would have to be off limits)
-
-(defun is-whitespace (c)
-  (cl-case c ((?\s ?\n ?\t) t)))
 
 ;inc ptr to first non whitespace char
-;strings are not nil terminated so ptr at eof will be out of bounds
 ;TODO skip comments
-(defun skip (i)
-  (if (>= i (length buf))
-      (length buf)
-    (let ((c (aref buf i)))
-      (if (is-whitespace c)
-          (skip (1+ i))
-        i))))
+(defun skip ()
+  (if (eobp)
+      (point-max)
+    (let ((whitespace (bounds-of-thing-at-point 'whitespace)))
+      (if (> (cdr whitespace) 0)
+          (goto-char (cdr whitespace ))))))
 
 ;for now, tokens will be single symbols.
 ;this is to be used like those scanner functions in parser.c in main project
@@ -110,6 +104,20 @@
                    (lex (caar p) (cdr p) (append lexemes (cons (cdr p) nil))))))))
 
 
+(defun test-skip ()
+  ;;skip to the first identifier
+  (with-current-buffer (get-buffer "pdx-ex1.txt")
+    (point-min)
+    (message "%s" (point))
+    (skip)
+    (message "%s" (point))
+    ;from line 2, skip to the next identifier
+    (message "%s" (point))
+    (forward-line 2)
+    (skip)
+    (message "%s" (point))))
+
+
 ;;; parsing
 
 ;; EBNF-like description
@@ -133,124 +141,106 @@
 ;;https://emacsdocs.org/docs/elisp/Errors TODO read
 ;NOTE tok's "any-in-list" feature is still unused with this...
 ;organized so there can be a "global" pt
-(defun parser-container ()
-    (let ((pt -1)
-          (state nil)
-          (acc 0))
-      (cl-labels
-          ;;helpers: allow,force are used for their side-effects.
-          ;;procedures for non-terminals: parse-*
-          ((peek () (cdr (tok pt)))
-           ;;accept,expect? try-consume,force-consume? permit,assert?
-           ;;we use the word "expect" in ``tok'' already...
-           (allow (&optional as-type)
-             (let ((p (tok pt as-type)))
-               ;;redundant now since keeping state stack: pt is (caar (car state))
-               (setq pt (caar p))
-               (if (cdar p) (progn ;;accumulator++, to track how many times to pop
-                              (setq acc (1+ acc)) (push p state)))))
-           (force (as-type)
-             (let ((p (allow as-type)))
-               (if (not (cdar p))
-                   (error "at %s: unexpected token `%s' (%s)"
-                          (skip (1+ pt)) (peek) as-type)
-                 p)))
-           (compile-ident-expr (acc-init)
-             (let ((ident-expr nil)
-                   (n (- acc acc-init)))
-             ;;TODO for real multichar tokens, this will need to be updated.
-             ;;here, it works like the atof(ident-expr) option in comment in ``p-i''. it's just concatenating instead of making a float.
-               (cl-loop repeat n do (push (cdr (pop state)) ident-expr))
-               ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
-               (push ident-expr state))
-             ;;compile rebuilds result into state stack, so the accumulator only has 1 more object
-             (setq acc (1+ acc-init)))
-           (compile-block-expr (acc-init)
-             (let ((block-expr nil) (obj nil) (key-val nil)
-                   (n ; -2 for '{ and '}
-                    (- acc acc-init 2)))
-               (pop state) ;  '}
-               (cl-loop repeat (ceiling (/ n 3)) do ;NOTE counting trick
-                        ;;this is so bad maybe because the grammar doesnt go well with the desired data struct?
-                        ;;  (imagine an "assignment" nonterminal)
-                        ;;intended to be a less expressive/more compact data format where block name is first elt
-                        ;;NOTE this can only deal with blocks where all elts are assignments, no single idents
-                        (let ((val (pop state)) (key (progn (pop state) (pop state))))
-                          (push (cons key val) block-expr)))
-               (pop state) ;  '{
-               ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
-               (push block-expr state))
-             (setq acc (1+ acc-init)))
-           ;; new for nonterm procedures:
-           ;; instead of building -exp return list by (push (force 'x) [-exp]),
-           ;; ``allow'' now pushes to a state stack and nonterm expression is built
-           ;; by pushing (pop state) to it. means theres no need to reverse before return.
-           ;; (and it could be extended for precedence. although building a list in reverse
-           ;; and calling reverse is apparently pretty normal in lisp?)
-           ;;NOTE these are written very procedurally i.e. not functionally
-           (parse-identifier ()
-             (let ((acc-init acc))
-               (if (eq (peek) 's)
-                   (force 's)
-                 ;;how to handle number exps? you could just have the parser check for syntax validity and throw it into atof().
-                 ;;then you could have a number type as the thing in the built tree. question is what you want the data structure to be.
-                 (progn
-                   (allow '-)
-                   (force 'n)
-                   (if (eq (peek) '\.)
-                       (progn
-                         (force '\.)
-                         (force 'n)))))
-               (compile-ident-expr acc-init)))
-           (parse-block ()
-            ;;block data structure: atomics (standalone idents), cons pairs (for ident=ident) and lists (inner blocks)
-            ;;UPDATE: not true anymore, see compile-block-expr
-            (let ((acc-init acc))
-              (force '{)
-              (cl-loop until (eq (peek) '}) do
-                       ;push ident
-                       ;NOTE this is ok for empty block thanks to until clause evaling up front
-                       (parse-identifier)
-                       (if (eq (peek) '=)
-                           (progn
-                             (force '=)
-                             (if (eq (peek) '{)
-                                 (parse-block)
-                               (parse-identifier)))))
-              (force '})
-              (compile-block-expr acc-init)))
-          ; (parse-file () ;TODO
-          ;   (let ((file-exp nil))
-          ;     (cl-loop do
-          ;              (push (expr-to-str (parse-identifier)) file-exp)
-          ;              (force '=)
-          ;              (push (parse-block (pop file-exp)) file-exp)
-          ;              until (eq (peek) 'eof))
-          ;     (force 'eof)
-          ;     (push 'eof file-exp)
-          ;     (reverse file-exp))))
-           )
-        (parse-block))
-      state))
+;(defun parser-container ()
+;    (let ((pt -1)
+;          (state nil)
+;          (acc 0))
+;      (cl-labels
+;          ;;helpers: allow,force are used for their side-effects.
+;          ;;procedures for non-terminals: parse-*
+;          ((peek () (cdr (tok pt)))
+;           ;;accept,expect? try-consume,force-consume? permit,assert?
+;           ;;we use the word "expect" in ``tok'' already...
+;           (allow (&optional as-type)
+;             (let ((p (tok pt as-type)))
+;               ;;redundant now since keeping state stack: pt is (caar (car state))
+;               (setq pt (caar p))
+;               (if (cdar p) (progn ;;accumulator++, to track how many times to pop
+;                              (setq acc (1+ acc)) (push p state)))))
+;           (force (as-type)
+;             (let ((p (allow as-type)))
+;               (if (not (cdar p))
+;                   (error "at %s: unexpected token `%s' (%s)"
+;                          (skip (1+ pt)) (peek) as-type)
+;                 p)))
+;           (compile-ident-expr (acc-init)
+;             (let ((ident-expr nil)
+;                   (n (- acc acc-init)))
+;             ;;TODO for real multichar tokens, this will need to be updated.
+;             ;;here, it works like the atof(ident-expr) option in comment in ``p-i''. but concat as list -> to string instead of making a float.
+;               (cl-loop repeat n do (push (cdr (pop state)) ident-expr))
+;               ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
+;               (push ident-expr state))
+;             ;;compile rebuilds result into state stack, so the accumulator only has 1 more object
+;             (setq acc (1+ acc-init)))
+;           (compile-block-expr (acc-init)
+;             (let ((block-expr nil) (obj nil) (key-val nil)
+;                   (n ; -2 for '{ and '}
+;                    (- acc acc-init 2)))
+;               (pop state) ;  '}
+;               (cl-loop repeat (ceiling (/ n 3)) do ;NOTE counting trick
+;                        ;;this is so bad maybe because the grammar doesnt go well with the desired data struct?
+;                        ;;  (imagine an "assignment" nonterminal)
+;                        ;;intended to be a less expressive/more compact data format where block name is first elt
+;                        ;;NOTE this can only deal with blocks where all elts are assignments, no single idents
+;                        (let ((val (pop state)) (key (progn (pop state) (pop state))))
+;                          (push (cons key val) block-expr)))
+;               (pop state) ;  '{
+;               ;;push the data object to the state IN PLACE OF all the read tokens or other objects there already
+;               (push block-expr state))
+;             (setq acc (1+ acc-init)))
+;           ;; new for nonterm procedures:
+;           ;; instead of building -exp return list by (push (force 'x) [-exp]),
+;           ;; ``allow'' now pushes to a state stack and nonterm expression is built
+;           ;; by pushing (pop state) to it. means theres no need to reverse before return.
+;           ;; (and it could be extended for precedence. although building a list in reverse
+;           ;; and calling reverse is apparently pretty normal in lisp?)
+;           ;;NOTE these are written very procedurally i.e. not functionally
+;           (parse-identifier ()
+;             (let ((acc-init acc))
+;               (if (eq (peek) 's)
+;                   (force 's)
+;                 ;;how to handle number exps? you could just have the parser check for syntax validity and throw it into atof().
+;                 ;;then you could have a number type as the thing in the built tree. question is what you want the data structure to be.
+;                 (progn
+;                   (allow '-)
+;                   (force 'n)
+;                   (if (eq (peek) '\.)
+;                       (progn
+;                         (force '\.)
+;                         (force 'n)))))
+;               (compile-ident-expr acc-init)))
+;           (parse-block ()
+;            ;;block data structure: atomics (standalone idents), cons pairs (for ident=ident) and lists (inner blocks)
+;            ;;UPDATE: not true anymore, see compile-block-expr
+;            (let ((acc-init acc))
+;              (force '{)
+;              (cl-loop until (eq (peek) '}) do
+;                       ;push ident
+;                       ;NOTE this is ok for empty block thanks to until clause evaling up front
+;                       (parse-identifier)
+;                       (if (eq (peek) '=)
+;                           (progn
+;                             (force '=)
+;                             (if (eq (peek) '{)
+;                                 (parse-block)
+;                               (parse-identifier)))))
+;              (force '})
+;              (compile-block-expr acc-init)))
+;          ; (parse-file () ;TODO
+;          ;   (let ((file-exp nil))
+;          ;     (cl-loop do
+;          ;              (push (expr-to-str (parse-identifier)) file-exp)
+;          ;              (force '=)
+;          ;              (push (parse-block (pop file-exp)) file-exp)
+;          ;              until (eq (peek) 'eof))
+;          ;     (force 'eof)
+;          ;     (push 'eof file-exp)
+;          ;     (reverse file-exp))))
+;           )
+;        (parse-block))
+;      state))
 
 ;;; pdx-parser.el ends here
 
 
-;ELISP>
-;(setq buf "{s={n=n n.n=n.n -n=-n}}")
-;"{s={n=n n.n=n.n -n=-n}}"
-;
-;ELISP> (parser-container)
-;((((s) ((n) n) ((n \. n) n \. n) ((- n) - n))))
-;
-;ELISP> (setq buf "{s=-n.n}")
-;"{s=-n.n}"
-;
-;ELISP> (parser-container)
-;((((s) - n \. n)))
-;
-;ELISP> (setq buf "{s=-n.n n=-n}")
-;"{s=-n.n n=-n}"
-;
-;ELISP> (parser-container)
-;((((s) - n \. n) ((n) - n)))
