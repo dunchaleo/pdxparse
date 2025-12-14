@@ -39,7 +39,7 @@
 
 
 ;this is to be used like those scanner functions in parser.c in main project.
-;relies a lot on thing-at-point, could rely on emacs more w/ with-syntax-table.
+;relies a lot on thing-at-point, TODO wrap in with-syntax-table to gimp number and word recognition ('-, '. and '., respectively)
 ;return token type and bounds: (type . (start . end))
 ;(still bad if called on whitespace pt)
 ;can scan at any point, does not change buffer ptr (resets it)
@@ -50,8 +50,8 @@
                        (cons 'n (bounds-of-thing-at-point 'number)))
                       ((is-alpha c)
                        (cons 's (bounds-of-thing-at-point 'word)))
-                      ((is-symbol c)
-                       (cons ((lambda (lexeme) ;for 1-char lexemes that are symbols
+                      (t ;treat anything not a number/letter as a 1-char lexeme
+                       (cons ((lambda (lexeme)
                                 (if (member lexeme (list ?= ?{ ?} ?\. ?-))
                                     (intern (char-to-string lexeme))
                                   'sym))
@@ -63,12 +63,11 @@
 ;this is tokenize-as/consume. returns a parser object, ((bounds . expectedp) . token-type)
 ;can tokenize anything (nil), or expect ``as-type'' (atom or list).
 ;param ``as-type'' is a token type i.e just a symbol, param P is a parser object
-(defun tok (i &optional as-type)
-  (goto-char i)
+(defun tok (&optional as-type)
   (let (;;force a list (``nil'' is a list '() but not a cons cell -elisp docs)
         (as-type (if (listp as-type) as-type (cons as-type nil)))
         ;;``skip'' from end idx of this token (to beg of next) and scan in next type
-        (next-type (scan (skip (1+ i)))))
+        (next-type (scan (skip (1+ (point))))))
     (if (or (eq as-type nil)
             (member t (mapcar (lambda (type) (eq type next-type)) as-type)))
         (cons
@@ -105,20 +104,6 @@
                    lexemes
                  (let ((p (tok i)))
                    (lex (caar p) (cdr p) (append lexemes (cons (cdr p) nil))))))))
-
-
-(defun test-skip ()
-  ;;skip to the first identifier
-  (with-current-buffer (get-buffer "pdx-ex1.txt")
-    (point-min)
-    (message "%s" (point))
-    (skip)
-    (message "%s" (point))
-    ;from line 2, skip to the next identifier
-    (message "%s" (point))
-    (forward-line 2)
-    (skip)
-    (message "%s" (point))))
 
 
 ;;; parsing
