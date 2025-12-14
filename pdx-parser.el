@@ -29,36 +29,42 @@
 
 
 ;inc ptr to first non whitespace char
-(defun skip ()
+(defun skip (i)
   ;(if (eobp)
   ;    (point-max)
+  (goto-char i)
   (if (eq (char-after) ?#)
-      (progn (forward-line) (skip))
+      (skip (forward-line))
     (goto-char (cdr (bounds-of-thing-at-point 'whitespace)))))
 
 
 ;this is to be used like those scanner functions in parser.c in main project.
 ;relies a lot on thing-at-point, could rely on emacs more w/ with-syntax-table.
-(defun scan ()
-  (cond ((is-number (char-after))
-         (cons 'n (bounds-of-thing-at-point 'number)))
-        ((is-alpha (char-after))
-         (cons 's (bounds-of-thing-at-point 'word)))
-        ((is-symbol (char-after))
-         (cons ((lambda (lexeme) ;for 1-char lexemes that are symbols
-                  (if (member lexeme (list ?= ?{ ?} ?\. ?-))
-                      (intern (char-to-string lexeme))
-                    'sym))
-                (char-after))
-               (cons (point) (1+ point))))))
+;return token type and bounds: (type . (start . end))
+;(still bad if called on whitespace pt)
+;can scan at any point, does not change buffer ptr (resets it)
+(defun scan (i)
+  (let* ((pt (point))
+         (c (progn (goto-char i) (char-after)))
+         (token (cond ((is-number c)
+                       (cons 'n (bounds-of-thing-at-point 'number)))
+                      ((is-alpha c)
+                       (cons 's (bounds-of-thing-at-point 'word)))
+                      ((is-symbol c)
+                       (cons ((lambda (lexeme) ;for 1-char lexemes that are symbols
+                                (if (member lexeme (list ?= ?{ ?} ?\. ?-))
+                                    (intern (char-to-string lexeme))
+                                  'sym))
+                              c)
+                             (cons (point) (1+ point)))))))
+    (goto-char pt)
+    token))
 
-;this is tokenize-as/consume. returns a parser object, ((idx . expectedp) . token)
-;  (TODO? param P instead of i?)
-;can tokenize anything (nil), or expect ``as-type'' (atom or list)
-;(again, ``as-type'' here is a token datatype, its "value" being the symbol itself).
-;  not keeping a token word length for now but finding next-type would need to use that
-;    (and then we wouldnt have to ``(tok -1)'' to initialize)
+;this is tokenize-as/consume. returns a parser object, ((bounds . expectedp) . token-type)
+;can tokenize anything (nil), or expect ``as-type'' (atom or list).
+;param ``as-type'' is a token type i.e just a symbol, param P is a parser object
 (defun tok (i &optional as-type)
+  (goto-char i)
   (let (;;force a list (``nil'' is a list '() but not a cons cell -elisp docs)
         (as-type (if (listp as-type) as-type (cons as-type nil)))
         ;;``skip'' from end idx of this token (to beg of next) and scan in next type
@@ -76,7 +82,7 @@
         (cons (cons -1 nil) 'sym)))))
 
 (defun tok* (i &optional as-type)
-  ;;return a (token . idx) object--sometimes the extra expectedp bit is annoying
+  ;;return a (idx . token-type bounds) object--sometimes the extra expectedp bit is annoying
   (let ((p (tok i as-type)))
     (cons (cdr p) (caar p))))
 
