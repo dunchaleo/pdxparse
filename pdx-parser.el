@@ -41,12 +41,15 @@
 ;this is to be used like those scanner functions in parser.c in main project.
 ;relies a lot on thing-at-point, TODO wrap in with-syntax-table to gimp number and word recognition ('-, '. and '., respectively)
 ;return token type and bounds: (type . (start . end))
+;  (hesitant to call it a "token object", want to keep the attributes in P the other way around for some reason)
 ;(still bad if called on whitespace pt)
 ;can scan at any point, does not change buffer ptr (resets it)
 (defun scan (i)
   (let* ((pt (point))
          (c (progn (goto-char i) (char-after)))
-         (token (cond ((is-number c)
+         (token (cond ((not c)
+                       'eof)
+                      ((is-number c)
                        (cons 'n (bounds-of-thing-at-point 'number)))
                       ((is-alpha c)
                        (cons 's (bounds-of-thing-at-point 'word)))
@@ -56,34 +59,38 @@
                                     (intern (char-to-string lexeme))
                                   'sym))
                               c)
-                             (cons (point) (1+ point)))))))
+                             (cons (point) (1+ point))))
+                      )))
     (goto-char pt)
     token))
 
 ;this is tokenize-as/consume. returns a parser object, ((bounds . expectedp) . token-type)
 ;can tokenize anything (nil), or expect ``as-type'' (atom or list).
 ;param ``as-type'' is a token type i.e just a symbol, param P is a parser object
-(defun tok (&optional as-type)
+(defun tok (P &optional as-type)
   (let (;;force a list (``nil'' is a list '() but not a cons cell -elisp docs)
         (as-type (if (listp as-type) as-type (cons as-type nil)))
-        ;;``skip'' from end idx of this token (to beg of next) and scan in next type
-        (next-type (scan (skip (1+ (point))))))
+        ;;``skip'' from end idx of this token--``(cdr (caar P))'', to beg of next,
+        ;;and scan in next lexeme as a token (returning (type . bounds))
+        (next-token (scan (skip (cdr (caar P))))))
     (if (or (eq as-type nil)
-            (member t (mapcar (lambda (type) (eq type next-type)) as-type)))
-        (cons
-         (cons (skip (1+ i)) t)
+            (member t (mapcar (lambda (type) (eq type (car next-token))) as-type)))
+        ;;construct P
+        (cons ()
+         (cons (cdr next-token) t)
          next-type)
-      ;;DONE(todo) eval error out of range when fails to tokenize at -1.
-      (if (>= i 0)
-          ;harmlessly return i and token at i. (``(skip i)'' for > bounds)
-          (cons (cons (skip i) nil) (scan i))
-        ;weird but i dont want a "bof"
-        (cons (cons -1 nil) 'sym)))))
-
-(defun tok* (i &optional as-type)
-  ;;return a (idx . token-type bounds) object--sometimes the extra expectedp bit is annoying
+      ;;i think emacs takes care of out of bounds issues:
+      ;;(just have to construct an initial P for calling first time, like in C vers)
+      ;(if (car i 0)
+      ;    ;harmlessly return i and token at i. (``(skip i)'' for > bounds)
+      ;    (cons (cons (skip i) nil) (scan i))
+      ;  ;weird but i dont want a "bof"
+      ;  (cons (cons -1 nil) 'sym)))))
+)))
+(defun tok* (P &optional as-type)
+  ;;return a (bounds . token-type) object--sometimes the extra expectedp bit is annoying
   (let ((p (tok i as-type)))
-    (cons (cdr p) (caar p))))
+    (cons (caar p) (cdr p))))
 
 ;makes a single pass to convert all tokens read into a list
 ;for this simplified trial, it just holds symbols. later, it should hold strings
