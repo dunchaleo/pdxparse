@@ -29,10 +29,10 @@
 
 
 ;inc ptr to first non whitespace char
-(defun skip (i)
+(defun skip (&optional i)
   ;(if (eobp)
   ;    (point-max)
-  (goto-char i)
+  (goto-char (if i i (point)))
   (if (eq (char-after) ?#)
       (skip (forward-line))
     (goto-char (cdr (bounds-of-thing-at-point 'whitespace)))))
