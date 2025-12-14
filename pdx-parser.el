@@ -27,15 +27,14 @@
 
 
 ;inc ptr to first non whitespace char
-;TODO skip comments
 (defun skip ()
-  (if (eobp)
-      (point-max)
-    (let ((whitespace (bounds-of-thing-at-point 'whitespace)))
-      (if (> (cdr whitespace) 0)
-          (goto-char (cdr whitespace ))))))
+  ;(if (eobp)
+  ;    (point-max)
+  (if (eq (char-after) ?#)
+      (progn (forward-line) (skip))
+    (goto-char (cdr (bounds-of-thing-at-point 'whitespace)))))
 
-;for now, tokens will be single symbols.
+
 ;this is to be used like those scanner functions in parser.c in main project
 (defun scan (i)
   (let
