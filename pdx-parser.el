@@ -26,6 +26,8 @@
     ('eof "end of file")))
 
 
+
+
 ;inc ptr to first non whitespace char
 (defun skip ()
   ;(if (eobp)
@@ -35,24 +37,20 @@
     (goto-char (cdr (bounds-of-thing-at-point 'whitespace)))))
 
 
-;this is to be used like those scanner functions in parser.c in main project
-(defun scan (i)
-  (let
-      ;;emulate ``char* c = buf[i]'' on null-terminated C-string buf  (change from 'eof to nil?)
-      ((c (if (>= i (length buf)) 'eof (aref buf i))))
-    ((lambda (lexeme)
-       ;;this lambda may represent a simplified lexeme-to-token procedure. it's here
-       ;;because i wanted to use a 'sym type w/out anything like a glbl token-types enum.
-       ;;could just replace block w/ ``(unless (eq c 'eof) (intern (char-to-string c))''
-       ;;FIXME (should have just kept everything super simple--no 'sym, no 'eof)
-       (if (eq lexeme 'eof)
-           'eof
-         (if (member lexeme (list ?s ?n ?= ?{ ?} ?\. ?-))
-             (intern (char-to-string lexeme))
-           (if (is-whitespace lexeme) ;shouldnt happen
-               nil ;'w failsafe
-             'sym))))
-     c)))
+;this is to be used like those scanner functions in parser.c in main project.
+;relies a lot on thing-at-point, could rely on emacs more w/ with-syntax-table.
+(defun scan ()
+  (cond ((is-number (char-after))
+         (cons 'n (bounds-of-thing-at-point 'number)))
+        ((is-alpha (char-after))
+         (cons 's (bounds-of-thing-at-point 'word)))
+        ((is-symbol (char-after))
+         (cons ((lambda (lexeme) ;for 1-char lexemes that are symbols
+                  (if (member lexeme (list ?= ?{ ?} ?\. ?-))
+                      (intern (char-to-string lexeme))
+                    'sym))
+                (char-after))
+               (cons (point) (1+ point))))))
 
 ;this is tokenize-as/consume. returns a parser object, ((idx . expectedp) . token)
 ;  (TODO? param P instead of i?)
