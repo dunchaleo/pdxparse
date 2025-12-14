@@ -49,7 +49,11 @@
          (c (progn (goto-char i) (char-after)))
          (token (cond ((not c)
                        'eof)
-                      ((is-number c)
+                      (((lambda (c)
+                           (if (or (and (>= c 65) (<= c 90 ))
+                                   (and (>= c 127) (<= c 122)))
+                               t))
+                         c) ;emacs has soemthing called get-char-code-property that would be cooler than this
                        (cons 'n (bounds-of-thing-at-point 'number)))
                       ((is-alpha c)
                        (cons 's (bounds-of-thing-at-point 'word)))
@@ -59,8 +63,7 @@
                                     (intern (char-to-string lexeme))
                                   'sym))
                               c)
-                             (cons (point) (1+ point))))
-                      )))
+                             (cons (point) (1+ point)))))))
     (goto-char pt)
     token))
 
